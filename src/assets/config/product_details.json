@@ -38,7 +38,7 @@
       ]
     },
     {
-      "platformShortName": "Sentinel-2",
+      "platformShortName": "SENTINEL-2",
       "Attributes": [
         "beginningDateTime",
         "endingDateTime",
@@ -122,5 +122,12 @@
         "qualityStatus"
       ]
     }
-  ]
+  ],
+  "StacProperties": {
+    "Id": "id",
+    "ContentLength": "file:size",
+    "OriginDate": "origin_date",
+    "PublicationDate": "published",
+    "Checksum": "file:checksum"
+  }
 }

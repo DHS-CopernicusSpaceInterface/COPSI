@@ -1,4 +1,5 @@
-@import "../../../src/vars";
+@use "src/vars" as *;
+@use "sass:color";
 
 #main-alert-container {
   z-index: 99;

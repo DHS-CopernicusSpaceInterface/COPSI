@@ -1,13 +1,26 @@
 import { Component, Input, OnDestroy, OnInit, AfterViewInit } from '@angular/core';
 import { ExchangeService } from '../services/exchange.service';
-import { Observable, Subscription } from 'rxjs';
-import { ProductSearchService } from '../services/product-search.service';
+import { Subscription } from 'rxjs';
+import { DownloadProgress, ProductSearchService } from '../services/product-search.service';
 import { AppConfig } from '../services/app.config';
 import { DetailsConfig } from '../services/details.config';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { ToastComponent } from '../toast/toast.component';
-import { Download } from 'ngx-operators';
+import _ from 'underscore';
+import { AlertComponent } from '../alert/alert.component';
+
+interface StacSearch {
+  "datetime"?: string;
+  "ids"?: [string?];
+  "filter"?: {[key: string]: any};
+  "fields"?: {[key: string]: any};
+  "collections"?: [string?];
+  "intersects"?: {[key: string]: any};
+  "sortby": [{[key: string]: any}];
+  "limit": number;
+  "page": number;
+}
 
 declare let $: any;
 let listContainer: any;
@@ -45,9 +58,10 @@ let scrollDetailsLeft: any;
 let scrollDetailsRight: any;
 
 @Component({
-  selector: 'app-search-bar',
-  templateUrl: './search-bar.component.html',
-  styleUrls: ['./search-bar.component.scss']
+    selector: 'app-search-bar',
+    templateUrl: './search-bar.component.html',
+    styleUrls: ['./search-bar.component.scss'],
+    standalone: false
 })
 export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   public productListSubscription!: Subscription;
@@ -75,6 +89,39 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   public productFilter: string = "";
   public attributeFilter: string = "";
   public geoFilter: string = "";
+  public stacFilter: StacSearch = {
+    "sortby": [{
+        "field": "properties.updated",
+        "direction": "desc"
+    }],
+    "limit": AppConfig.settings.searchOptions.productsPerPageStac,
+    "page": 1
+  };
+  public stacFilterPrec: StacSearch = {...this.stacFilter};
+/*
+  public exFilter: any = {
+    "datetime" : "2025-06-10T00:00:00Z/2025-08-25T23:59:59Z",
+    "collections": ["SENTINEL-1", "SENTINEL-2", "SENTINEL-3", "SENTINEL-5P"],
+    "intersects": {
+        "type":"MultiPolygon",
+        "coordinates":[
+            [[
+                [-180, -90],
+                [-180,  90],
+                [   0,  90],
+                [   0, -90],
+                [-180, -90]
+            ]]
+        ]
+    },
+    "sortby": [{
+        "field": "properties.updated",
+        "direction": "desc"
+    }],
+    "limit": 10,
+    "page": 1
+  };
+*/
   public geoFilterIsActive: boolean = false;
   public filterOutputIsVisible: boolean = false;
   public filterOutputIsPinnedByDefault: boolean = AppConfig.settings.searchOptions.filterOutputIsPinnedByDefault;
@@ -87,7 +134,6 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   public productFilterPrec: string = "";
   public attributeFilterPrec: string = "";
   public geoFilterPrec: string = "";
-  public filterHasChanged: boolean = false;
 
   public productList: any = {
     "@odata.count": 0,
@@ -133,6 +179,7 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   public selectedProducts: any = [];
   public propertiesList: any = DetailsConfig.settings.Properties;
   public attributesList: any = DetailsConfig.settings.Attributes;
+  public stacPropertiesList: any = DetailsConfig.settings.StacProperties;
   public Object = Object;
   public Array = Array;
 
@@ -143,20 +190,31 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
 
   public comboTimeoutId: any;
 
-  download$: Observable<Download> | undefined
+  private odataVersion: string = AppConfig.settings.odataVersion;
+  public gssSelectedProtocol: string = AppConfig.settings.searchOptions.defaultGssProtocol;
+  public gssSelectedProtocolPrec: string = this.gssSelectedProtocol;
+  public stacCollectionsList: string[] = [];
+  public isOdataActive: boolean = false;
+  public isStacActive: boolean = false;
+  //download$: Observable<Download> | undefined
   public downloadSubscription: Map<String, Subscription> = new Map();
-
+  isLoggedSubscription!: Subscription;
   updateGeoSearchSubscription!: Subscription;
+  updateGeoSearchStacSubscription!: Subscription;
   updateHoveredProductSubscription! : Subscription;
   zoomToListSubscription!: Subscription;
   showFootprintsMenuSubscription!: Subscription;
+  updateGssProtocolSubscription!: Subscription;
+
+  public isLogged: boolean = false;
 
   constructor(
     private exchangeService: ExchangeService,
     private productSearch: ProductSearchService,
     private sanitizer: DomSanitizer,
     private clipboard: Clipboard,
-    private toast: ToastComponent
+    private toast: ToastComponent,
+    private alert: AlertComponent
     ) {
   }
 
@@ -302,6 +360,89 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+    this.checkTypedFilter();
+
+    this.isLoggedSubscription = this.exchangeService.isLoggedExchange.subscribe((value) => {
+      if (typeof(value) === 'boolean') {
+        this.isLogged = value;
+        //console.log("isLogged: ", this.isLogged);
+        this.checkGssProtocols();
+      }
+    });
+    this.updateGeoSearchSubscription = this.exchangeService.geoSearchOutputExchange.subscribe((value) => {
+      if (typeof(value) === 'string') {
+        this.geoSearchUpdate(value);
+      }
+    });
+    this.updateGeoSearchStacSubscription = this.exchangeService.geoSearchOutputStacExchange.subscribe((value) => {
+      if (typeof(value) === 'object') {
+        this.geoSearchUpdateStac(value);
+      }
+    });
+    this.updateHoveredProductSubscription = this.exchangeService.hoveredProductExchange.subscribe((value) => {
+      this.updateHoveredProduct(value);
+    });
+    this.zoomToListSubscription = this.exchangeService.zoomToProductIdOnListExchange.subscribe((value) => {
+      if (typeof(value) === 'string') {
+        this.zoomToList(value);
+      }
+    });
+    this.showFootprintsMenuSubscription = this.exchangeService.footprintMenuEventExchange.subscribe((value) => {
+      this.showFootprintsMenu(value);
+    });
+    this.updateGssProtocolSubscription = this.exchangeService.selectedGssProtocol.subscribe((value) => {
+      if (typeof(value) === 'string') {
+        this.gssSelectedProtocolPrec = this.gssSelectedProtocol;
+        this.gssSelectedProtocol = value;
+        if (this.gssSelectedProtocol !== this.gssSelectedProtocolPrec) {
+          this.gssSelectedProtocolPrec = this.gssSelectedProtocol;
+          for (let i = this.selectedProducts.length - 1; i >= 0; i--) {
+            this.onHideProductDetails(this.selectedProducts[i].Id, this.selectedProducts[i].productListIndex);
+          }
+          this.productTotalNumber = 0;
+          this.showProductList = false;
+          this.listIsReady = true;
+          this.productListRolled = false;
+          this.productList = {
+            "@odata.count": 0,
+            value: []
+          };
+          this.exchangeService.setProductList(this.productList);
+
+          setTimeout(() => {
+            this.onShowHideButtonClick(null);
+            this.showProductListContainer();
+            this.parseAdvancedFilter();
+            this.checkTypedFilter();
+          }, 10);
+        }
+        setTimeout(() => {
+          this.checkFilterOutputHeight();
+        }, 50);
+      }
+    });
+
+    scrollDetailsLeft = document.getElementById('scroll-details-left')!;
+    scrollDetailsRight = document.getElementById('scroll-details-right')!;
+  }
+
+  ngOnDestroy(): void {
+    this.productListSubscription.unsubscribe();
+    this.isLoggedSubscription.unsubscribe();
+    this.updateGeoSearchSubscription.unsubscribe();
+    this.updateHoveredProductSubscription.unsubscribe();
+    this.zoomToListSubscription.unsubscribe();
+    this.showFootprintsMenuSubscription.unsubscribe();
+    if (this.downloadSubscription.size > 0) {
+      this.downloadSubscription.forEach(sub => {
+        sub.unsubscribe();
+      });
+    }
+    this.updateGeoSearchStacSubscription.unsubscribe();
+    this.updateGssProtocolSubscription.unsubscribe();
+  }
+
+  checkTypedFilter() {
     /* Filter parsing while typing */
     let searchFilterTextDiv: any = document.getElementById('search-input')!;
     let parseFilterTimeoutId: any;
@@ -311,6 +452,7 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
         clearTimeout(parseFilterTimeoutId);
         parseFilterTimeoutId = setTimeout(() => {
           this.parsedFilter = this.productSearch.parseFilter(e.target.value);
+          this.parseAdvancedFilter();
           setTimeout(() => {
             this.checkFilterOutputHeight();
           }, 50);
@@ -330,39 +472,64 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
         }, 500);
       })
     });
-
-    this.updateGeoSearchSubscription = this.exchangeService.geoSearchOutputExchange.subscribe((value) => {
-      if (typeof(value) === 'string') {
-        this.geoSearchUpdate(value);
-      }
-    });
-    this.updateHoveredProductSubscription = this.exchangeService.hoveredProductExchange.subscribe((value) => {
-      this.updateHoveredProduct(value);
-    });
-    this.zoomToListSubscription = this.exchangeService.zoomToProductIdOnListExchange.subscribe((value) => {
-      if (typeof(value) === 'string') {
-        this.zoomToList(value);
-      }
-    });
-    this.showFootprintsMenuSubscription = this.exchangeService.footprintMenuEventExchange.subscribe((value) => {
-      this.showFootprintsMenu(value);
-    });
-
-    scrollDetailsLeft = document.getElementById('scroll-details-left')!;
-    scrollDetailsRight = document.getElementById('scroll-details-right')!;
   }
 
-  ngOnDestroy(): void {
-    this.productListSubscription.unsubscribe();
-    this.updateGeoSearchSubscription.unsubscribe();
-    this.updateHoveredProductSubscription.unsubscribe();
-    this.zoomToListSubscription.unsubscribe();
-    this.showFootprintsMenuSubscription.unsubscribe();
-    if (this.downloadSubscription.size > 0) {
-      this.downloadSubscription.forEach(sub => {
-        sub.unsubscribe();
-      });
-    }
+  checkGssProtocols() {
+    // Check GSS Protocols
+    this.productSearch.checkOdataService().subscribe({
+      next: (res: any) => {
+        if (res.status == 200 && res.body.hasOwnProperty('$Version')) {
+          this.isOdataActive = true;
+        } else {
+          this.isOdataActive = false;
+        }
+      },
+      error: (err: any) => {
+        this.isOdataActive = false;
+        if (this.gssSelectedProtocol === "OData") {
+          this.exchangeService.setGssProtocol("STAC");
+        }
+        console.error(err);
+      },
+      complete: () => {
+        if (this.isLogged) {
+          console.log("Check for OData module availability: ", this.isOdataActive);
+        }
+        this.exchangeService.setOdataActive(this.isOdataActive);
+
+        this.productSearch.getCollections().subscribe({
+          next: (res: any) => {
+            if (res.hasOwnProperty("collections")) {
+              this.stacCollectionsList = res.collections.map((obj: any) => obj.id);
+              console.log("Retrieved STAC Collections List from GSS: ", this.stacCollectionsList);
+              this.isStacActive = true;
+            } else {
+              this.isStacActive = false;
+            }
+          },
+          error: (err: any) => {
+            this.isStacActive = false;
+            console.log("Error: ", err);
+          },
+          complete: () => {
+            if (this.isLogged) {
+              console.log("Check for STAC module availability: ", this.isStacActive);
+            }
+            this.exchangeService.setStacActive(this.isStacActive);
+            if (this.isStacActive === false && this.isOdataActive) {
+              console.log("Changing gss protocol to OData..");
+              this.exchangeService.setGssProtocol("OData");
+            }
+            if (!this.isOdataActive && !this.isStacActive && this.isLogged) {
+              advancedSearchSubmitIcon.classList.add('invalid');
+              advancedSearchMagnifierIcon.classList.add('invalid');
+              this.canSubmitSearch = false;
+              this.alert.showErrorAlert("GSS PROTOCOL ERROR", "Both STAC and OData protocols seem to be inactive.");
+            }
+          }
+        });
+      }
+    })
   }
 
   checkFilterOutputHeight() {
@@ -409,7 +576,12 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   onCopyOutputClicked (event: any) {
-    let filterOutput: string = filterOutputScrollableDiv.textContent;
+    let filterOutput: string = "";
+    if (this.gssSelectedProtocol === "OData") {
+      filterOutput = filterOutputScrollableDiv.textContent;
+    } else {
+      filterOutput = JSON.stringify(this.stacFilter, null, 2);
+    }
     this.clipboard.copy(filterOutput);
     this.toast.showInfoToast('success', 'FILTER OUTPUT COPIED');
   }
@@ -446,7 +618,7 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
     }, 300);
   }
 
-  onAdvancedSearchClear(event: any) {
+  onAdvancedSearchClear() {
     [].forEach.call(this.platformDetailsList, (mission: any) => {
       [].forEach.call(mission.filters, (filter: any) => {
         filter.selectedValues = [];
@@ -482,19 +654,23 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
     this.productFilter = "";
     this.attributeFilter = "";
     this.advancedFilterOutputIsActive = false;
+    this.parseAdvancedFilter();
   }
 
   onAdvancedSearchSubmit(event: any) {
     this.parseAdvancedFilter();
-
     if (this.canSubmitSearch) {
       setTimeout(() => {
         if (this.selectedProducts.length > 0) {
-          if (
-            this.parsedFilterPrec != this.parsedFilter ||
-            this.productFilterPrec != this.productFilter ||
-            this.attributeFilterPrec != this.attributeFilter ||
-            this.geoFilterPrec != this.geoFilter
+          if ((
+              this.gssSelectedProtocol === "OData" && (
+              this.parsedFilterPrec != this.parsedFilter ||
+              this.productFilterPrec != this.productFilter ||
+              this.attributeFilterPrec != this.attributeFilter ||
+              this.geoFilterPrec != this.geoFilter)
+            ) || (
+              this.gssSelectedProtocol === "STAC" && !_.isEqual(this.stacFilterPrec, this.stacFilter)
+            )
           ) {
             this.toast.showInfoToast('info', 'FILTER CHANGED. REMOVING PRODUCT DETAILS');
             for (let i = this.selectedProducts.length - 1; i >= 0; i--) {
@@ -502,16 +678,22 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
             }
           }
         }
-        this.parsedFilterPrec = this.parsedFilter;
-        this.productFilterPrec = this.productFilter;
-        this.attributeFilterPrec = this.attributeFilter;
-        this.geoFilterPrec = this.geoFilter;
+        if (this.gssSelectedProtocol === "OData") {
+          this.parsedFilterPrec = this.parsedFilter;
+          this.productFilterPrec = this.productFilter;
+          this.attributeFilterPrec = this.attributeFilter;
+          this.geoFilterPrec = this.geoFilter;
+        } else {
+          this.stacFilterPrec = {...this.stacFilter};
+        }
       }, 50);
 
-      if (this.productFilter === "" && this.attributeFilter === "") {
-        this.advancedFilterIsActive = false;
-      } else {
-        this.advancedFilterIsActive = true;
+      if (this.gssSelectedProtocol === "OData") {
+        if (this.productFilter === "" && this.attributeFilter === "") {
+          this.advancedFilterIsActive = false;
+        } else {
+          this.advancedFilterIsActive = true;
+        }
       }
 
       /* Hide Advanced Search Panel */
@@ -525,31 +707,38 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
       /* Send Search */
       this.onSearch(event);
     } else {
-      this.toast.showInfoToast('error', 'PLEASE CHECK INPUT: INVALID FIELDS');
+      if (!this.isOdataActive && !this.isStacActive) {
+        this.toast.showInfoToast('error', 'NO GSS PROTOCOL AVAILABLE');
+      } else {
+        this.toast.showInfoToast('error', 'PLEASE CHECK INPUT: INVALID FIELDS');
+      }
     }
   }
 
   onDateClicked(event: any) {
-    /* uncomment showPicker() to show picker calendar on date click */
+    /* uncomment to show picker calendar on date click */
     //event.target.showPicker();
   }
 
   onMissionFilterButtonClicked(event: any) {
     let header = event.target.closest(".collapsible-header-div");
-    header.classList.toggle("active");
     var content = header.nextElementSibling;
-    if (content.style.maxHeight){
-      content.style.maxHeight = null;
-      let contentDiv = header.nextElementSibling;
-      let selectsToClear = contentDiv.getElementsByTagName("select");
-      let inputsToClear = contentDiv.getElementsByTagName("input");
-      [].forEach.call(selectsToClear, (el:any) => {
-        el.selectedIndex = 0;
-      });
-      [].forEach.call(inputsToClear, (el:any) => {
-        el.value = "";
-      });
+    if (header.classList.contains("active")) {
+      header.classList.remove("active");
+      if (content.style.maxHeight){
+        content.style.maxHeight = null;
+        let contentDiv = header.nextElementSibling;
+        let selectsToClear = contentDiv.getElementsByTagName("select");
+        let inputsToClear = contentDiv.getElementsByTagName("input");
+        [].forEach.call(selectsToClear, (el:any) => {
+          el.selectedIndex = 0;
+        });
+        [].forEach.call(inputsToClear, (el:any) => {
+          el.value = "";
+        });
+      }
     } else {
+      header.classList.add("active");
       content.style.maxHeight = "10000px";
     }
     this.parseAdvancedFilter();
@@ -635,6 +824,13 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   parseAdvancedFilter() {
     /* Parse Product Filter (Content and Publication Periods) */
     this.productFilter = "";
+
+    this.sensingStartEl = document.getElementById('sensing-start')!;
+    this.sensingStopEl = document.getElementById('sensing-stop')!;
+    this.publicationStartEl = document.getElementById('publication-start')!;
+    this.publicationStopEl = document.getElementById('publication-stop')!;
+    this.missionEl = document.getElementsByClassName('collapsible-section')!;
+
     let bracketOpen: boolean = false;
     this.canSubmitSearch = true;
     if (advancedSearchSubmitIcon.classList.contains('invalid')) {
@@ -644,6 +840,12 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
       advancedSearchMagnifierIcon.classList.remove('invalid');
     }
 
+    /* Check for GSS modules availability */
+    if (!this.isOdataActive && !this.isStacActive) {
+      advancedSearchSubmitIcon.classList.add('invalid');
+      advancedSearchMagnifierIcon.classList.add('invalid');
+      this.canSubmitSearch = false;
+    }
     /* Parse sensing dates */
     if (this.sensingStartEl.value !== "") {
       if (this.sensingStopEl.value === "" || (this.sensingStartEl.value <= this.sensingStopEl.value)) {
@@ -717,13 +919,12 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
       this.productFilter += ")";
       bracketOpen = false;
     }
-    //console.log("ProductFilter: " + this.productFilter);
 
     /* Parse Attribute Filter */
     this.attributeFilter = "";
     [].forEach.call(this.missionEl, (el:any, i:any) => {
       let bracketOpenInner: boolean = false;
-      if (el.getElementsByTagName('input')[0].checked) {
+      if (el.getElementsByTagName('input')[0].checked && this.gssSelectedProtocol === 'OData') {
         /* a mission has been selected */
         if (this.attributeFilter !== "") {
           this.attributeFilter += " or "
@@ -825,13 +1026,81 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
     } else {
       this.advancedFilterOutputIsActive = true;
     }
-    //console.log("AttributeFilter: " + this.attributeFilter);
 
     this.checkFilterParsingToggle();
+    if (this.gssSelectedProtocol === 'STAC') {
+      this.parseAdvancedFilterStac();
+    }
     setTimeout(() => {
       this.checkFilterOutputHeight();
       this.checkAdvancedSearchThumbSize();
     }, 200);
+  }
+
+  parseAdvancedFilterStac() {
+    this.stacFilter.collections = [];
+    this.stacFilter.ids = [];
+    this.stacFilter.datetime = "";
+    this.canSubmitSearch = true;
+
+    /* Parsing name (ids) */
+    if (this.filter !== "") {
+      this.stacFilter.ids = [this.filter];
+    }
+
+    /* Check for GSS modules availability */
+    if (!this.isOdataActive && !this.isStacActive) {
+      advancedSearchSubmitIcon.classList.add('invalid');
+      advancedSearchMagnifierIcon.classList.add('invalid');
+      this.canSubmitSearch = false;
+    }
+
+    /* Parsing datetime */
+    if (this.sensingStartEl.value !== "") {
+      if (this.sensingStopEl.value === "" || (this.sensingStartEl.value <= this.sensingStopEl.value)) {
+        this.sensingStartEl.setCustomValidity("");
+        this.stacFilter.datetime = this.sensingStartEl.value + "T00:00:00.000Z/";
+      } else {
+        advancedSearchSubmitIcon.classList.add('invalid');
+        advancedSearchMagnifierIcon.classList.add('invalid');
+        this.sensingStartEl.setCustomValidity("Please check Sensing Start Date: Start Date > Stop Date");
+        this.canSubmitSearch = false;
+      }
+    }
+    if (this.sensingStopEl.value !== "") {
+      if (this.sensingStartEl.value === "") {
+        this.stacFilter.datetime += "/" + this.sensingStopEl.value + "T23:59:59.999Z";
+      } else if ((this.sensingStartEl.value <= this.sensingStopEl.value)) {
+        this.sensingStopEl.setCustomValidity("");
+        this.stacFilter.datetime += this.sensingStopEl.value + "T23:59:59.999Z";
+      } else {
+        advancedSearchSubmitIcon.classList.add('invalid');
+        advancedSearchMagnifierIcon.classList.add('invalid');
+        this.sensingStopEl.setCustomValidity("Please check Sensing Stop Date: Stop Date < Start Date");
+        this.canSubmitSearch = false;
+      }
+    }
+
+    /* Parsing collections */
+    [].forEach.call(this.missionEl, (el:any, i:any) => {
+      if (el.getElementsByTagName('input')[0].checked) {
+        // Commented, because when using STAC protocol, collections are retrieved directly from GSS.
+        // TODO: When there will be working GSS properties search, change the stacCollectionsList structure.
+        //this.stacFilter.collections?.push(this.platformDetailsList[i].value);
+        this.stacFilter.collections?.push(this.stacCollectionsList[i]);
+      }
+    });
+
+    /* Cleaning empty parameters */
+    if (this.stacFilter.ids.length == 0) {
+      delete this.stacFilter.ids;
+    }
+    if (this.stacFilter.collections.length == 0) {
+      delete this.stacFilter.collections;
+    }
+    if (this.stacFilter.datetime == "") {
+      delete this.stacFilter.datetime;
+    }
   }
 
   getNextSibling(elem: any, selector: any) {
@@ -877,15 +1146,32 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
     this.listIsReady = false;
     this.showProductList = true;
     this.currentPage = this.prevPage = 0;
-    this.searchOptions = {
-      filter: this.filter,
-      productFilter: this.productFilter,
-      attributeFilter: this.attributeFilter,
-      geoFilter: this.geoFilter,
-      top: AppConfig.settings.searchOptions.productsPerPage,
-      skip: 0,
-      order: this.orderBy,
-      sort: this.sortBy
+
+    if (this.gssSelectedProtocol === "OData") {
+      this.searchOptions = {
+        filter: this.filter,
+        productFilter: this.productFilter,
+        attributeFilter: this.attributeFilter,
+        geoFilter: this.geoFilter,
+        top: AppConfig.settings.searchOptions.productsPerPage,
+        skip: 0,
+        order: this.orderBy,
+        sort: this.sortBy
+      }
+    } else {
+      this.stacFilter.sortby[0]['direction'] = this.sortBy.toLowerCase();
+      this.stacFilter.limit = AppConfig.settings.searchOptions.productsPerPageStac;
+      this.stacFilter.page = 1;
+      this.searchOptions = {
+        filter: this.filter,
+        productFilter: this.productFilter,
+        attributeFilter: this.attributeFilter,
+        geoFilter: this.geoFilter,
+        top: this.stacFilter.limit,
+        skip: 0,
+        order: this.orderBy,
+        sort: this.sortBy
+      }
     }
     this.loadPage(this.currentPage);
     this.productListRolled = false;
@@ -904,151 +1190,328 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   loadPage(page: number) {
-    this.searchOptions.skip = page * this.searchOptions.top;
     this.productList.value.forEach((product: any, index: number) => {
       if (product.isSelected === true) {
         this.exchangeService.selectProductOnMap(index, false);
       }
     });
-    let searchReturn = this.productSearch.search(this.searchOptions).subscribe(
-      (res: any) => {
-        let tempProductDetailsZoomToListButtons = document.getElementsByClassName('zoom-to-list')!;
-        if (tempProductDetailsZoomToListButtons.length > 0) {
-          [].forEach.call(tempProductDetailsZoomToListButtons, (button: any) => {
-            button.classList.add('is-not-in-list');
-            button.title = 'Product not visible in this pagination';
-          });
-        }
-        this.productTotalNumber = res['@odata.count'];
-        this.lastPage = Math.floor(this.productTotalNumber / this.searchOptions.top);
-        if ("status" in res) {
-          /* response error */
-          this.productList = {
-            "@odata.count": 0,
-            value: []
-          };
-          this.exchangeService.setProductList(this.productList);
-        } else if (this.productTotalNumber == 0) {
-          /* 0 products found */
-          this.showProductList = true;
-          this.listIsReady = true;
-          this.productListRolled = true;
-          this.productList = {
-            "@odata.count": 0,
-            value: []
-          };
-          this.exchangeService.setProductList(this.productList);
-
-          setTimeout(() => {
-            this.onShowHideButtonClick(null);
-            this.showProductListContainer();
-          }, 10);
-        } else {
-          /* got a list */
-          this.productList = res;
-          this.productList.value.forEach((product: any) => {
-            product.isSelected = false;
-            product.download = {};
-            product.tags = [];
-            if ("Attributes" in product) {
-              product.Attributes.forEach((attribute: any) => {
-                if (attribute.Name == "platformShortName") {
-                  product.platformShortName = attribute.Value;
-                }
-                if (attribute.Name == "platformSerialIdentifier") {
-                  product.platformSerialIdentifier = attribute.Value;
-                }
-              });
-              product.Attributes.forEach((attribute: any) => {
-                this.platformDetailsList.forEach((platform: any) => {
-                  if (product.platformShortName == platform.value) {
-                    platform.tags.forEach((tag: any) => {
-                      if (attribute.Name == tag.name) {
-                        product.tags.push({name: tag.name, value: attribute.Value, color: tag.color, title: tag.title});
+    if (this.gssSelectedProtocol === "OData") {
+      /* OData */
+      this.searchOptions.skip = page * this.searchOptions.top;
+      let searchReturn = this.productSearch.search(this.searchOptions).subscribe(
+        (res: any) => {
+          let tempProductDetailsZoomToListButtons = document.getElementsByClassName('zoom-to-list')!;
+          if (tempProductDetailsZoomToListButtons.length > 0) {
+            [].forEach.call(tempProductDetailsZoomToListButtons, (button: any) => {
+              button.classList.add('is-not-in-list');
+              button.title = 'Product not visible in this pagination';
+            });
+          }
+          this.productTotalNumber = res['@odata.count'];
+          this.lastPage = Math.floor((this.productTotalNumber / this.searchOptions.top) % 1 == 0 ? (this.productTotalNumber / this.searchOptions.top) - 1 : (this.productTotalNumber / this.searchOptions.top));
+          if ("status" in res) {
+            /* response error */
+            this.productList = {
+              "@odata.count": 0,
+              value: []
+            };
+            this.exchangeService.setProductList(this.productList);
+          } else if (this.productTotalNumber == 0) {
+            /* 0 products found */
+            this.showProductList = true;
+            this.listIsReady = true;
+            this.productListRolled = true;
+            this.productList = {
+              "@odata.count": 0,
+              value: []
+            };
+            this.exchangeService.setProductList(this.productList);
+            setTimeout(() => {
+              this.onShowHideButtonClick(null);
+              this.showProductListContainer();
+            }, 10);
+          } else {
+            /* got a list */
+            this.productList = res;
+            if (this.productList.value) {
+              this.productList.value.forEach((product: any) => {
+                product.isSelected = false;
+                product.download = {};
+                product.tags = [];
+                if ("Attributes" in product) {
+                  product.Attributes.forEach((attribute: any) => {
+                    if (attribute.Name == "platformShortName") {
+                      product.platformShortName = attribute.Value;
+                    }
+                    if (attribute.Name == "platformSerialIdentifier") {
+                      product.platformSerialIdentifier = attribute.Value;
+                    }
+                  });
+                  product.Attributes.forEach((attribute: any) => {
+                    this.platformDetailsList.forEach((platform: any) => {
+                      if (product.platformShortName == platform.value) {
+                        platform.tags.forEach((tag: any) => {
+                          if (attribute.Name == tag.name) {
+                            product.tags.push({name: tag.name, value: attribute.Value, color: tag.color, title: tag.title});
+                          }
+                        });
                       }
                     });
+                  });
+                };
+                this.productSearch.getQL(product.Id).subscribe({
+                  next: (res: any) => {
+                    if ("type" in res) {
+                      product.hasQL = true;
+                      product.qlURL = this.sanitizeImageUrl(URL.createObjectURL(res));
+                    } else {
+                      product.hasQL = false;
+                      product.qlURL = "";
+                    }
+                  },
+                  error: (e) => {}
+                });
+
+                /* Check if selected products are in the list */
+                [].forEach.call(this.selectedProducts ,(sel: any, index: number) => {
+                  sel.isInList = false;
+                  if (product.Id === sel.Id) {
+                    setTimeout(() => {
+                      product.isSelected = true;
+                      product.download = sel.download;
+                      sel.isInList = true;
+                      listItemDiv[sel.productListIndex].classList.add('selected');
+                      let tempButton: any = tempProductDetailsZoomToListButtons[index];
+                      tempButton.classList.remove('is-not-in-list');
+                      tempButton.title = 'Show Product In List';
+                      this.exchangeService.selectProductOnMap(sel.productListIndex, true);
+                    }, 0);
                   }
                 });
               });
-            };
-            this.productSearch.getQL(product.Id).subscribe({
-              next: (res: any) => {
-                if ("type" in res) {
-                  product.hasQL = true;
-                  product.qlURL = this.sanitizeImageUrl(URL.createObjectURL(res));
-                } else {
-                  product.hasQL = false;
-                  product.qlURL = "";
-                }
-              },
-              error: (e) => {}
-            });
+            }
+            this.exchangeService.setProductList(this.productList);
 
-            /* Check if selected products are in the list */
-            [].forEach.call(this.selectedProducts ,(sel: any, index: number) => {
-              sel.isInList = false;
-              if (product.Id === sel.Id) {
-                setTimeout(() => {
-                  product.isSelected = true;
-                  product.download = sel.download;
-                  sel.isInList = true;
-                  listItemDiv[sel.productListIndex].classList.add('selected');
-                  let tempButton: any = tempProductDetailsZoomToListButtons[index];
-                  tempButton.classList.remove('is-not-in-list');
-                  tempButton.title = 'Show Product In List';
-                  this.exchangeService.selectProductOnMap(sel.productListIndex, true);
-                }, 0);
-              }
-            });
-          });
-          this.exchangeService.setProductList(this.productList);
-
-          this.listIsReady = true;
-          this.productListRolled = true;
-          this.productStartNumber = page * this.searchOptions.top + 1;
-          this.productEndNumber = page * this.searchOptions.top + this.searchOptions.top;
-          if (this.productEndNumber > this.productTotalNumber) {
-            this.productEndNumber = this.productTotalNumber;
-          }
-          if (page > this.prevPage) {
-            listContainer.scrollTop = 0;
-          } else if (page < this.prevPage) {
+            this.listIsReady = true;
+            this.productListRolled = true;
+            this.productStartNumber = page * this.searchOptions.top + 1;
+            this.productEndNumber = page * this.searchOptions.top + this.searchOptions.top;
+            if (this.productEndNumber > this.productTotalNumber) {
+              this.productEndNumber = this.productTotalNumber;
+            }
+            if (page > this.prevPage) {
+              listContainer.scrollTop = 0;
+            } else if (page < this.prevPage) {
+              setTimeout(() => {
+                listContainer.scrollTop = 99999;
+              }, 10);
+            } else {
+              listContainer.scrollTop = 0;
+            }
+            this.prevPage = page;
             setTimeout(() => {
-              listContainer.scrollTop = 99999;
+              prevPageButton = document.getElementById('load-prev')!;
+              nextPageButton = document.getElementById('load-next')!;
+
+              /* Check if page buttons should be visible */
+              if (this.currentPage == 0) {
+                prevPageButton.classList.remove('active');
+                if (this.currentPage < this.lastPage) {
+                  nextPageButton.classList.add('active');
+                } else {
+                  nextPageButton.classList.remove('active');
+                }
+              } else if (this.currentPage == this.lastPage) {
+                nextPageButton.classList.remove('active');
+                if (this.currentPage > 0) {
+                prevPageButton.classList.add('active');
+                }
+              } else {
+                prevPageButton.classList.add('active');
+                nextPageButton.classList.add('active');
+              }
+              this.onShowHideButtonClick(null);
+              this.setListView(this.lastViewStyle);
+              this.showProductListContainer();
+            }, 10);
+          }
+        }
+      );
+    } else {
+      /* STAC */
+      this.stacFilter.page = page + 1;
+      let searchReturn = this.productSearch.searchStac(this.stacFilter).subscribe(
+        (res: any) => {
+          let tempProductDetailsZoomToListButtons = document.getElementsByClassName('zoom-to-list')!;
+          if (tempProductDetailsZoomToListButtons.length > 0) {
+            [].forEach.call(tempProductDetailsZoomToListButtons, (button: any) => {
+              button.classList.add('is-not-in-list');
+              button.title = 'Product not visible in this pagination';
+            });
+          }
+          this.productTotalNumber = res.numberMatched;
+
+          if (this.productTotalNumber == 0) {
+            /* 0 products found */
+            this.showProductList = true;
+            this.listIsReady = true;
+            this.productListRolled = true;
+            this.productList = {
+              "@odata.count": 0,
+              value: []
+            };
+            this.exchangeService.setProductList(this.productList);
+            setTimeout(() => {
+              this.onShowHideButtonClick(null);
+              this.showProductListContainer();
             }, 10);
           } else {
-            listContainer.scrollTop = 0;
-          }
-          this.prevPage = page;
+            /* got a list */
+            this.lastPage = Math.floor((this.productTotalNumber / this.searchOptions.top) % 1 == 0 ? (this.productTotalNumber / this.searchOptions.top) - 1 : (this.productTotalNumber / this.searchOptions.top));
+            if (res.hasOwnProperty("type") && res.type === "FeatureCollection") {
+              /* got a valid response */
+              this.productList = {
+                "@odata.count": this.productTotalNumber,
+                value: []
+              };
+              res.features.forEach((feature: any) => {
+                let tempProduct: any = {};
+                // First add parsed properties
+                tempProduct.Name = feature.hasOwnProperty('id') ? feature.id : "";
+                tempProduct.platformShortName = (feature.hasOwnProperty('properties') && feature.properties.hasOwnProperty('constellation')) ? feature.properties.constellation.toUpperCase() : "";
+                tempProduct.platformSerialIdentifier = feature.hasOwnProperty('id') ? this.getPlatformSerialIdentifierFromProductId(feature.id) : "";
+                tempProduct.ContentDate = (feature.hasOwnProperty('properties') && feature.properties.hasOwnProperty('start_datetime')) ? {
+                  Start: feature.properties.start_datetime,
+                  End: feature.properties.end_datetime
+                } : {Start: "", End: ""};
+                // Add autoconverted properties
+                Object.entries(this.stacPropertiesList).forEach(([key, value]) => {
+                  tempProduct[<string>key] = feature.properties[<string>value];
+                })
+                // Set other empty props
+                tempProduct.isSelected = false;
+                if (feature.hasOwnProperty('assets') && feature.assets.hasOwnProperty('product')) {
+                  tempProduct.download = {
+                    url: feature.assets.product.hasOwnProperty('href') ? feature.assets.product.href : "",
+                    type: feature.assets.product.hasOwnProperty('type') ? feature.assets.product.type: ""
+                  };
+                }
+                tempProduct.tags = [];
+                // Add Tags
+                Object.entries(feature.properties).forEach(([propKey, propValue]) => {
+                  this.platformDetailsList.forEach((platform: any) => {
+                    if (feature.hasOwnProperty('properties') && feature.properties.hasOwnProperty('constellation')) {
+                      if (feature.properties.constellation.toLowerCase() === platform.value.toLowerCase()) {
+                        Object.entries(platform.stacTags).forEach(([tagKey, tagValue]) => {
+                          if (propKey == tagValue) {
+                            tempProduct.tags.push({
+                              name: propKey,
+                              value: propValue,
+                              color: platform.tags.filter((tag: any) => tag.name === tagKey)[0]?.color,
+                              title: platform.tags.filter((tag: any) => tag.name === tagKey)[0]?.title
+                            });
+                          }
+                        });
+                      }
+                    }
+                  });
+                });
 
-          setTimeout(() => {
-            prevPageButton = document.getElementById('load-prev')!;
-            nextPageButton = document.getElementById('load-next')!;
+                // Add Attributes
+                tempProduct.Attributes = [];
+                Object.entries(feature.properties).forEach(([key, value]) => {
+                  tempProduct.Attributes.push({Name: key, Value: value});
+                });
 
-            /* Check if page buttons should be visible */
-            if (this.currentPage == 0) {
-              prevPageButton.classList.remove('active');
-              if (this.currentPage < this.lastPage) {
-                nextPageButton.classList.add('active');
+                // Add Footprint
+                tempProduct.GeoFootprint = feature.hasOwnProperty('geometry') ? feature.geometry : "";
+
+                // Add QLs
+                this.productSearch.getQLStac(tempProduct.Name).subscribe({
+                  next: (resQL: any) => {
+                    if ("type" in resQL) {
+                      tempProduct.hasQL = true;
+                      tempProduct.qlURL = this.sanitizeImageUrl(URL.createObjectURL(resQL));
+                    } else {
+                      tempProduct.hasQL = false;
+                      tempProduct.qlURL = "";
+                    }
+                  },
+                  error: (e) => {}
+                });
+
+                [].forEach.call(this.selectedProducts ,(sel: any, index: number) => {
+                  sel.isInList = false;
+                  if (tempProduct.Id === sel.Id) {
+                    setTimeout(() => {
+                      tempProduct.isSelected = true;
+                      tempProduct.download = sel.download;
+                      sel.isInList = true;
+                      listItemDiv[sel.productListIndex].classList.add('selected');
+                      let tempButton: any = tempProductDetailsZoomToListButtons[index];
+                      tempButton.classList.remove('is-not-in-list');
+                      tempButton.title = 'Show Product In List';
+                      this.exchangeService.selectProductOnMap(sel.productListIndex, true);
+                    }, 0);
+                  }
+                });
+                this.productList.value.push(tempProduct);
+              });
+              this.exchangeService.setProductList(this.productList);
+              this.listIsReady = true;
+              this.productListRolled = true;
+              this.productStartNumber = page * this.stacFilter.limit + 1;
+              this.productEndNumber = page * this.stacFilter.limit + this.stacFilter.limit;
+              if (this.productEndNumber > this.productTotalNumber) {
+                this.productEndNumber = this.productTotalNumber;
+              }
+              if (page > this.prevPage) {
+                listContainer.scrollTop = 0;
+              } else if (page < this.prevPage) {
+                setTimeout(() => {
+                  listContainer.scrollTop = 99999;
+                }, 10);
               } else {
-                nextPageButton.classList.remove('active');
+                listContainer.scrollTop = 0;
               }
-            } else if (this.currentPage == this.lastPage) {
-              nextPageButton.classList.remove('active');
-              if (this.currentPage > 0) {
-              prevPageButton.classList.add('active');
-              }
+              this.prevPage = page;
+              setTimeout(() => {
+                prevPageButton = document.getElementById('load-prev')!;
+                nextPageButton = document.getElementById('load-next')!;
+                /* Check if page buttons should be visible */
+                if (this.currentPage == 0) {
+                  prevPageButton.classList.remove('active');
+                  if (this.currentPage < this.lastPage) {
+                    nextPageButton.classList.add('active');
+                  } else {
+                    nextPageButton.classList.remove('active');
+                  }
+                } else if (this.currentPage == this.lastPage) {
+                  nextPageButton.classList.remove('active');
+                  if (this.currentPage > 0) {
+                  prevPageButton.classList.add('active');
+                  }
+                } else {
+                  prevPageButton.classList.add('active');
+                  nextPageButton.classList.add('active');
+                }
+                this.onShowHideButtonClick(null);
+                this.setListView(this.lastViewStyle);
+                this.showProductListContainer();
+              }, 10);
+
             } else {
-              prevPageButton.classList.add('active');
-              nextPageButton.classList.add('active');
+              /* response error */
+              this.productList = {
+                "@odata.count": 0,
+                value: []
+              };
+              this.exchangeService.setProductList(this.productList);
             }
-            this.onShowHideButtonClick(null);
-            this.setListView(this.lastViewStyle);
-            this.showProductListContainer();
-          }, 10);
+          }
         }
-      }
-    );
+      );
+    }
   }
 
   hoverProduct(e: any) {
@@ -1184,33 +1647,39 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  downloadProduct(id: string, name: string) {
+  downloadProduct(id: string, name: string): void {
     this.toast.showInfoToast('success', 'DOWNLOADING PRODUCT...');
-    let downloadUrl: any = AppConfig.settings.baseUrl + `odata/v1/Products(${id})/$value`;
+    let downloadUrl: string = "";
     let productInSelectedList = this.selectedProducts.filter((product: any) => product.Id === id)[0];
+    let productInList = this.productList.value.filter((product: any) => product.Id === id)[0];
+    if (this.gssSelectedProtocol === "OData") {
+      downloadUrl = AppConfig.settings.serviceUrl + `/odata/${this.odataVersion}/Products(${id})/$value`;
+    } else {
+      downloadUrl = productInList.download.url;
+    }
+    console.log('Download of file ' + name + ' started.');
+
     this.downloadSubscription.set(id ,this.productSearch.download(downloadUrl, name).subscribe({
-        next: (res: any) => {
-          if (productInSelectedList != null) {
-            productInSelectedList.download = res;
-          }
-          this.productList.value.forEach((product: any) => {
-            if (product.Id == id) {
-              product.download = res;
-            }
-          });
+      next: (res: DownloadProgress) => {
+        if (productInSelectedList != null) {
+          productInSelectedList.download.state = res.state;
+          productInSelectedList.download.progress = res.progress || 0;
         }
-        , error: (e) => {
-          if (productInSelectedList != null) {
-            productInSelectedList.download = {};
-          }
-          this.productList.value.forEach((product: any) => {
-            if (product.Id == id) {
-              product.download = {};
-            }
-          });
+        productInList.download.state = res.state;
+        productInList.download.progress = res.progress || 0;
+      },
+      complete: () => {
+        console.log('Download of file ' + name + ' completed!');
+      },
+      error: (error) => {
+        if (productInSelectedList != null) {
+          delete productInSelectedList.download.state;
+          delete productInSelectedList.download.progress;
         }
-      })
-    );
+        delete productInList.download.state;
+        delete productInList.download.progress;
+      }
+    }));
   }
 
   unsubscribeDownload(id: string) {
@@ -1245,6 +1714,13 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
       this.checkFilterOutputHeight();
       this.checkAdvancedSearchThumbSize();
     }, 200);
+  }
+
+  geoSearchUpdateStac(geoSearchObj: {}) {
+    this.stacFilter.intersects = geoSearchObj;
+    if (_.isEmpty(this.stacFilter.intersects)) {
+      delete this.stacFilter.intersects;
+    }
   }
 
   updateHoveredProduct(infos: any) {
@@ -1387,9 +1863,10 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
     let tempSelectedProductFromList = this.productList.value.filter((product: any) => product.Id === id)[0];
     if (tempSelectedProductFromList !== null) {
       this.selectedProducts.push(tempSelectedProductFromList);
-      this.selectedProducts[this.selectedProducts.length - 1].isSelected = true;
-      this.selectedProducts[this.selectedProducts.length - 1].productListIndex = index;
-      this.selectedProducts[this.selectedProducts.length - 1].isInList = true;
+      let currentSelectedProduct = this.selectedProducts.filter((product: any) => product.Id === id)[0];
+      currentSelectedProduct.isSelected = true;
+      currentSelectedProduct.productListIndex = index;
+      currentSelectedProduct.isInList = true;
 
       this.productDetailsContainerIsRolled = false;
 
@@ -1398,25 +1875,28 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       listItemDiv[index].classList.add('selected');
-      let tempUnfilteredProductAttributes: any = this.selectedProducts[this.selectedProducts.length - 1].Attributes;
-      let tempAttributeListFiltered: any = this.attributesList.filter((platformAttributeObject: any) => platformAttributeObject.platformShortName === this.selectedProducts[this.selectedProducts.length - 1].platformShortName);
-      let tempAttributesToFilter: any;
-      if (tempAttributeListFiltered.length > 0) {
-        tempAttributesToFilter = tempAttributeListFiltered[0].Attributes;
-        this.selectedProducts[this.selectedProducts.length - 1].Attributes = [];
-        tempUnfilteredProductAttributes.forEach((unfilteredAttribute: any) => {
-          tempAttributesToFilter.forEach((attributeNameToFilter: any) => {
-            if (attributeNameToFilter === unfilteredAttribute.Name) {
-              this.selectedProducts[this.selectedProducts.length - 1].Attributes.push(unfilteredAttribute);
-            }
+      let tempUnfilteredProductAttributes: any = currentSelectedProduct.Attributes;
+      if (this.gssSelectedProtocol === "OData") {
+        let tempAttributeListFiltered: any = this.attributesList.filter((platformAttributeObject: any) => platformAttributeObject.platformShortName === currentSelectedProduct.platformShortName);
+        let tempAttributesToFilter: any;
+        if (tempAttributeListFiltered.length > 0) {
+          tempAttributesToFilter = tempAttributeListFiltered[0].Attributes;
+          currentSelectedProduct.Attributes = [];
+          tempUnfilteredProductAttributes.forEach((unfilteredAttribute: any) => {
+            tempAttributesToFilter.forEach((attributeNameToFilter: any) => {
+              if (attributeNameToFilter === unfilteredAttribute.Name) {
+                currentSelectedProduct.Attributes.push(unfilteredAttribute);
+              }
+            });
           });
-        });
 
-      } else {
-        console.error("Couldn't find any matching attribute.. please check details config.");
+        } else {
+          console.error("Couldn't find any matching attribute.. please check details config.");
+        }
       }
-      this.exchangeService.selectProductOnMap(this.selectedProducts[this.selectedProducts.length - 1].productListIndex, true);
-      this.exchangeService.setProductList(this.productList); // Refresh map
+      this.exchangeService.selectProductOnMap(currentSelectedProduct.productListIndex, true);
+      // Refresh map
+      this.exchangeService.setProductList(this.productList);
 
       setTimeout(() => {
         this.onScrollDetailsLast();
@@ -1500,7 +1980,12 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   copyUrl(id: string) {
-    let copyUrl: any = (AppConfig.settings.baseUrl) ? AppConfig.settings.baseUrl + `odata/v1/Products(${id})`: window.location.origin + `/odata/v1/Products(${id})`;
+    let copyUrl: string = "";
+    if (this.gssSelectedProtocol == "OData") {
+      copyUrl = (AppConfig.settings.serviceUrl) ? AppConfig.settings.serviceUrl + `/odata/${this.odataVersion}/Products(${id})`: window.location.origin + `/odata/${this.odataVersion}/Products(${id})`;
+    } else {
+      copyUrl = this.productList.value.filter((product: any) => product.Id == id)[0].download.url;
+    }
     this.clipboard.copy(copyUrl);
     this.toast.showInfoToast('success', 'PRODUCT URL COPIED!');
   }
@@ -1595,5 +2080,27 @@ export class SearchBarComponent implements OnInit, OnDestroy, AfterViewInit {
 
   getTypeOf(obj: any) {
     return typeof obj;
+  }
+
+  convertStacJsonToOutputString(json: StacSearch) {
+    let outJson: any = {...json};
+    if (outJson.hasOwnProperty('datetime') && outJson.datetime === "") delete outJson.datetime;
+    if (outJson.hasOwnProperty('fields') && this.Object.keys(outJson.fields).length === 0) delete outJson.fields;
+    if (outJson.hasOwnProperty('collections') && outJson.collections?.length === 0) delete outJson.collections;
+    if (outJson.hasOwnProperty('filter') && this.Object.keys(outJson.filter).length === 0) delete outJson.filter;
+    if (outJson.hasOwnProperty('intersects') && this.Object.keys(outJson.intersects).length === 0) delete outJson.intersects;
+    if (outJson.hasOwnProperty('sortby')) delete outJson.sortby;
+    if (outJson.hasOwnProperty('limit')) delete outJson.limit;
+    if (outJson.hasOwnProperty('page')) delete outJson.page;
+    return JSON.stringify(outJson, null, 2);
+  }
+
+  getPlatformShortNameFromProductId(id: string):string {
+    let tempPlatform = id.split("_")[0];
+    return tempPlatform === "S5P" ? tempPlatform : tempPlatform.slice(0, -1);
+  }
+  getPlatformSerialIdentifierFromProductId(id: string):string {
+    let tempPlatform = id.split("_")[0];
+    return tempPlatform === "S5P" ? "" : tempPlatform.slice(2);
   }
 }

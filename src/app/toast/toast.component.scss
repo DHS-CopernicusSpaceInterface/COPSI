@@ -1,4 +1,4 @@
-@import "src/vars";
+@use "src/vars" as *;
 
 #toast-container-div {
   z-index: 99;

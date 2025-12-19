@@ -17,8 +17,17 @@ export class ExchangeService {
   private mapLayer = new BehaviorSubject<any>({});
   selectedMapLayer = this.mapLayer.asObservable();
 
-  private mapOverlay = new BehaviorSubject<any>({});
-  selectedMapOverlay = this.mapOverlay.asObservable();
+  // private mapOverlay = new BehaviorSubject<any>({});
+  // selectedMapOverlay = this.mapOverlay.asObservable();
+
+  private gssProtocol = new BehaviorSubject<any>({});
+  selectedGssProtocol = this.gssProtocol.asObservable();
+
+  private isOdataActive = new BehaviorSubject<any>({});
+  isOdataActiveExchange = this.isOdataActive.asObservable();
+
+  private isStacActive = new BehaviorSubject<any>({});
+  isStacActiveExchange = this.isStacActive.asObservable();
 
   private showProductIndex = new BehaviorSubject<any>({});
   showProductOnMapExchange = this.showProductIndex.asObservable();
@@ -40,6 +49,9 @@ export class ExchangeService {
 
   private geoSearchOutput = new BehaviorSubject<any>({});
   geoSearchOutputExchange = this.geoSearchOutput.asObservable();
+
+  private geoSearchOutputStac = new BehaviorSubject<any>({});
+  geoSearchOutputStacExchange = this.geoSearchOutputStac.asObservable();
 
   private hoveredProduct = new BehaviorSubject<any>({});
   hoveredProductExchange = this.hoveredProduct.asObservable();
@@ -77,8 +89,20 @@ export class ExchangeService {
     this.mapLayer.next(mapLayer);
   }
 
-  setMapOverlay(mapOverlay: string) {
-    this.mapOverlay.next(mapOverlay);
+  // setMapOverlay(mapOverlay: string) {
+  //   this.mapOverlay.next(mapOverlay);
+  // }
+
+  setGssProtocol(gssProtocol: string) {
+    this.gssProtocol.next(gssProtocol);
+  }
+
+  setOdataActive(isOdataActive: boolean) {
+    this.isOdataActive.next(isOdataActive);
+  }
+
+  setStacActive(isStacActive: boolean) {
+    this.isStacActive.next(isStacActive);
   }
 
   showProductOnMap(showProductIndex: any) {
@@ -107,6 +131,10 @@ export class ExchangeService {
 
   updateGeoSearch(geoSearchOutput: string) {
     this.geoSearchOutput.next(geoSearchOutput);
+  }
+
+  updateGeoSearchStac(geoSearchOutput: {}) {
+    this.geoSearchOutputStac.next(geoSearchOutput);
   }
 
   updateHoveredProduct(hoveredProduct: any) {

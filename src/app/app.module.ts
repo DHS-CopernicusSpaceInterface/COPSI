@@ -1,8 +1,9 @@
-import { APP_INITIALIZER, ErrorHandler, NgModule } from '@angular/core';
+import { ErrorHandler, NgModule, inject, provideAppInitializer } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
-import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
+//import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { MapComponent } from './map/map.component';
 import { FooterComponent } from './footer/footer.component';
 import { HeaderComponent } from './header/header.component';
@@ -47,46 +48,39 @@ export function initializeFootprintsCustomization(footprintsCustomizationConfig:
     ToastComponent,
     AlertComponent,
   ],
+  bootstrap: [AppComponent],
   imports: [
     BrowserModule,
     AppRoutingModule,
     BrowserAnimationsModule,
     MatIconModule,
     FormsModule,
-    HttpClientModule,
     MatProgressBarModule,
-    OAuthModule.forRoot({
-      resourceServer: {
-          allowedUrls: ['/odata/*','/test/*'],
-          sendAccessToken: true
-      }
-    })
+    OAuthModule.forRoot(
+    )
   ],
   providers: [
     { provide: HTTP_INTERCEPTORS, useClass: JwtInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: initializeApp,
-      deps: [AppConfig], multi: true
-    },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: initializeDetails,
-      deps: [DetailsConfig], multi: true
-    },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: initializeFootprintsCustomization,
-      deps: [FootprintsCustomizationConfig], multi: true
-    },
+    provideAppInitializer(() => {
+        const initializerFn = (initializeApp)(inject(AppConfig));
+        return initializerFn();
+      }),
+    provideAppInitializer(() => {
+        const initializerFn = (initializeDetails)(inject(DetailsConfig));
+        return initializerFn();
+      }),
+    provideAppInitializer(() => {
+        const initializerFn = (initializeFootprintsCustomization)(inject(FootprintsCustomizationConfig));
+        return initializerFn();
+      }),
     { provide: ErrorHandler, useClass: CustomErrorHandler},
     AppConfig,
     DetailsConfig,
     FootprintsCustomizationConfig,
-    SpinnerComponent
-  ],
-  bootstrap: [AppComponent]
+    SpinnerComponent,
+    provideHttpClient(withInterceptorsFromDi())
+  ]
 })
 export class AppModule {
 

@@ -1,4 +1,5 @@
-@import "src/vars";
+@use "src/vars" as *;
+@use "sass:color";
 
 #footer-container-div {
   z-index: 99;
@@ -35,7 +36,7 @@
 }
 
 #footer-logo-div:hover {
-  background-color: darken($menu-dark-bg-color, 15%);
+  background-color: color.adjust($menu-dark-bg-color, $lightness: -15%);
 }
 
 #footer-main-div {

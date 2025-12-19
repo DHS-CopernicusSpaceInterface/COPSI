@@ -1,8 +1,17 @@
 <!-- Search Bar -->
 <div id="search-bar-main-div">
-  <mat-icon *ngIf="advancedFilterIsActive == false" id="advanced-search-icon" aria-hidden="false" aria-label="advanced search icon" fontIcon="menu" title="Show advanced filter" (click)="onShowAdvancedSearch($event)"></mat-icon>
-  <mat-icon *ngIf="advancedFilterIsActive == true" id="advanced-search-icon-filtered" aria-hidden="false" aria-label="advanced search icon" fontIcon="filter_list" title="Show advanced filter" (click)="onShowAdvancedSearch($event)"></mat-icon>
+  @if (advancedFilterIsActive == false) {
+  <mat-icon id="advanced-search-icon" aria-hidden="false" aria-label="advanced search icon" fontIcon="menu" title="Show advanced filter" (click)="onShowAdvancedSearch($event)"></mat-icon>
+  }
+  @else {
+  <mat-icon id="advanced-search-icon-filtered" aria-hidden="false" aria-label="advanced search icon" fontIcon="filter_list" title="Show advanced filter" (click)="onShowAdvancedSearch($event)"></mat-icon>
+  }
+  @if (gssSelectedProtocol === "OData") {
   <input id="search-input" type="text" placeholder="Type a search string: e.g. *MSIL1C*" [(ngModel)]="filter" (keydown.enter)="onAdvancedSearchSubmit($event)" value="{{filter}}" title="Type a search string">
+  }
+  @else {
+  <input id="search-input" type="text" placeholder="Type a product name to search" [(ngModel)]="filter" (keydown.enter)="onAdvancedSearchSubmit($event)" value="{{filter}}" title="Type a search string">
+  }
   <div id="search-magnifier-icon-div">
     <mat-icon id="search-magnifier-icon" aria-hidden="false" aria-label="Search icon" fontIcon="search" title="Perform search" (click)="onAdvancedSearchSubmit($event)"></mat-icon>
   </div>
@@ -13,21 +22,35 @@
   <div id="filter-output-label-div">
     <div id="filter-output-label">Search filter output:</div>
     <div id="filter-output-icons-div">
+      <div id="filter-output-protocol-div">Protocol:<span>{{gssSelectedProtocol}}</span></div>
       <mat-icon id="copy-search-filter-output-icon" aria-hidden="false" aria-label="copy search filter output icon" title="Copy search filter output" (click)="onCopyOutputClicked($event)">content_copy</mat-icon>
       <mat-icon id="pin-search-filter-output-icon" [class]="filterOutputIsPinnedByDefault ? 'pinned' : 'unpinned'" aria-hidden="false" aria-label="pin search filter output icon" [title]="filterOutputIsPinnedByDefault ? 'Unpin search filter output' : 'Pin search filter output'" (click)="onPushPinToggle($event)">push_pin</mat-icon>
     </div>
   </div>
   <hr>
   <div id="filter-output-scrollable-div">
+    @if (gssSelectedProtocol === "OData") {
     <p>
       <span>{{parsedFilter}}</span>
-      <span *ngIf="parsedFilter !== '' && (productFilter !== '' || attributeFilter !== '' || geoFilter !== '')"> and </span>
+      @if (parsedFilter !== '' && parsedFilter !== undefined && (productFilter !== '' || attributeFilter !== '' || geoFilter !== '')) {
+      <span> and </span>
+      }
       <span>{{productFilter}}</span>
-      <span *ngIf="productFilter !== '' && (attributeFilter !== '' || geoFilter !== '')"> and </span>
+      @if (productFilter !== '' && (attributeFilter !== '' || geoFilter !== '')) {
+      <span> and </span>
+      }
       <span>{{attributeFilter}}</span>
-      <span *ngIf="attributeFilter !== '' && geoFilter !== ''"> and </span>
+      @if (attributeFilter !== '' && geoFilter !== '') {
+      <span> and </span>
+      }
       <span>{{geoFilter}}</span>
     </p>
+    }
+    @else {
+    <p>
+      <span><pre>{{convertStacJsonToOutputString(stacFilter)}}</pre></span>
+    </p>
+    }
   </div>
   <div id="filter-output-scroll-thumb"></div>
 </div>
@@ -37,7 +60,7 @@
   <div id="advanced-search-title-div">
     <p>Advanced Search</p>
     <div id="advanced-search-title-buttons-div">
-      <mat-icon id="advanced-search-clear-icon" aria-hidden="false" aria-label="advanced search clear icon" title="Clear all filters" (click)="onAdvancedSearchClear($event)">delete_outline</mat-icon>
+      <mat-icon id="advanced-search-clear-icon" aria-hidden="false" aria-label="advanced search clear icon" title="Clear all filters" (click)="onAdvancedSearchClear()">delete_outline</mat-icon>
       <mat-icon id="advanced-search-submit-icon" aria-hidden="false" aria-label="advanced search submit icon" title="Perform search" (click)="onAdvancedSearchSubmit($event)">done</mat-icon>
     </div>
   </div>
@@ -45,18 +68,29 @@
   <div id="advanced-search-scrollable-container">
     <div class="advanced-search-main-filters">
       <div class="advanced-search-item-div">
+        @if (gssSelectedProtocol === "OData") {
         <label for="order-by">Order by:</label>
         <select class="select" title="Change order value" (change)="onOrderByChanged($event)">
-          <option *ngFor="let option of orderByOptions">{{option.name}}</option>
+          @for (option of orderByOptions; track option.name;) {
+          <option>{{option.name}}</option>
+          }
         </select>
+        }
+        @else {
+        <label class="stac-disabled" for="order-by" disabled>Order by:</label>
+        <select class="select stac-disabled" title="Change order value" disabled>
+          <option>---</option>
+        </select>
+        }
       </div>
       <div class="advanced-search-item-div">
         <label for="sort-by">Sort by:</label>
         <select class="select" title="Change sort value" (change)="onSortByChanged($event)">
-          <option *ngFor="let option of sortByOptions">{{option.name}}</option>
+          @for (option of sortByOptions; track option.name;) {
+          <option>{{option.name}}</option>
+          }
         </select>
       </div>
-      <!-- hr -->
       <hr style="margin: 0.5rem 0;">
       <div class="advanced-search-item-div">
         <label for="sensing-start">Sensing date:</label>
@@ -67,19 +101,34 @@
         </div>
       </div>
       <div class="advanced-search-item-div">
+        @if (gssSelectedProtocol === "OData") {
         <label for="publication-start">Publication date:</label>
         <div class="datepicker-div">
-          <input type="date" class="date" id="publication-start" name="publication-start" [max]="publicationStopEl.value === '' ? todayDate : publicationStopEl.value" title="Publication start date" (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
+          <input type="date" class="date" id="publication-start" name="publication-start"
+            [max]="(publicationStopEl.value && publicationStopEl.value === '') ? todayDate : publicationStopEl.value" title="Publication start date"
+            (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
           <span>-</span>
-          <input type="date" class="date" id="publication-stop" name="publication-stop" [min]="publicationStartEl.value === '' ? undefined : publicationStartEl.value" [max]="todayDate" title="Publication start date" (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
+          <input type="date" class="date" id="publication-stop" name="publication-stop"
+            [min]="(publicationStartEl.value && publicationStartEl.value === '' ) ? undefined : publicationStartEl.value" [max]="todayDate" title="Publication start date"
+            (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
         </div>
+        }
+        @else {
+        <label for="publication-start" class="stac-disabled">Publication date:</label>
+        <div class="datepicker-div">
+          <input type="date" class="date stac-disabled" id="publication-start" name="publication-start" title="Publication start date" value="">
+          <span class="stac-disabled">-</span>
+          <input type="date" class="date stac-disabled" id="publication-stop" name="publication-stop" title="Publication start date" value="">
+        </div>
+        }
       </div>
     </div>
-    <!-- hr -->
     <hr>
 
     <!-- Missions Sections -->
-    <div class="collapsible-section" *ngFor="let el of platformDetailsList">
+    @if (gssSelectedProtocol === "OData") {
+    @for(el of platformDetailsList; track el;) {
+    <div class="collapsible-section">
       <div class="collapsible-header-div">
         <div type="button" class="collapsible-header">{{el.name}}: {{el.mission}}</div>
         <div class="mission-filter-slider-div">
@@ -89,43 +138,79 @@
           </label>
         </div>
       </div>
+
       <div class="content">
-        <div *ngFor="let filter of el.filters; let i = index" class="advanced-search-filter-div">
+        @for (filter of el.filters; let i = $index; track filter;) {
+        <div class="advanced-search-filter-div">
 
           <label for="filter">{{filter.name}}:</label>
-          <div class="filter-select-container" *ngIf="filter.hasOwnProperty('value')" name="filter">
-            <div *ngIf="filter.hasOwnProperty('value')" class="filter-select-div" title="Select {{filter.name}}" (click)="showComboSelect($event)">
+          @if (filter.hasOwnProperty('value')) {
+          <div class="filter-select-container" name="filter">
+            @if (filter.hasOwnProperty('value')) {
+            <div class="filter-select-div" title="Select {{filter.name}}" (click)="showComboSelect($event)">
               <div class="selected-options-div">
-                <div *ngIf="filter.selectedValues.length === 0" class="selected-option-placeholder">---</div>
-                <div *ngFor="let option of filter.selectedValues; let k = index" class="selected-option">
+                @if (filter.selectedValues.length === 0) {
+                <div class="selected-option-placeholder">---</div>
+                }
+                @for (option of filter.selectedValues; let k = $index; track option;) {
+                <div class="selected-option">
                   {{option}}
                   <mat-icon class="selected-option-button" aria-hidden="false" aria-label="Remove filter" title="Remove filter" fontIcon="clear"
                     (click)="onComboFilterRemove(filter.selectedValues, k, $event)"></mat-icon>
                 </div>
+                }
               </div>
             </div>
+            }
             <div class="combo-select-container hidden" (mouseover)="onComboHover()" (mouseleave)="onComboLeave()">
-              <div class="combo-select-div" *ngFor="let value of filter.value">
+              @for (value of filter.value; track value;) {
+              <div class="combo-select-div">
                 <button class="combo-select-button" (click)="onComboButtonSelected(filter, value, $event)">{{value}}</button>
                 <mat-icon class="combo-select-button-remove" aria-hidden="false" aria-label="Remove filter" title="Remove filter" fontIcon="clear"
                   (click)="onComboFilterRemoveFromList(filter.selectedValues, value, $event)"></mat-icon>
               </div>
+              }
             </div>
           </div>
-
-          <input *ngIf="filter.hasOwnProperty('manualInput')" class="input" type="string" name="filter" title="Write a {{filter.name}}" (change)="parseAdvancedFilter()">
-          <input *ngIf="filter.hasOwnProperty('needsMinMaxValues') && filter.needsMinMaxValues == false" class="input" type="number" name="filter" [min]="filter.minValue" [max]="filter.maxValue" [step]="filter.step" title="Type a number from {{filter.minValue}} to {{filter.maxValue}}" (change)="parseAdvancedFilter()">
-          <div *ngIf="filter.hasOwnProperty('needsMinMaxValues') && filter.needsMinMaxValues == true" class="min-max-input-div">
+          }
+          @if (filter.hasOwnProperty('manualInput')) {
+          <input class="input" type="string" name="filter" title="Write a {{filter.name}}" (change)="parseAdvancedFilter()">
+          }
+          @if (filter.hasOwnProperty('needsMinMaxValues') && filter.needsMinMaxValues == false) {
+          <input class="input" type="number" name="filter" [min]="filter.minValue" [max]="filter.maxValue" [step]="filter.step" title="Type a number from {{filter.minValue}} to {{filter.maxValue}}" (change)="parseAdvancedFilter()">
+          }
+          @if (filter.hasOwnProperty('needsMinMaxValues') && filter.needsMinMaxValues == true) {
+          <div class="min-max-input-div">
             <input class="input-min" type="number" name="filter" [min]="filter.minValue" [max]="filter.maxValue" [step]="filter.step" title="Min value - Type a number from {{filter.minValue}} to {{filter.maxValue}}" (change)="parseAdvancedFilter()">
             <span>-</span>
             <input class="input-max" type="number" name="filter" [min]="filter.minValue" [max]="filter.maxValue" [step]="filter.step" title="Max value - Type a number from {{filter.minValue}} to {{filter.maxValue}}" (change)="parseAdvancedFilter()">
           </div>
+          }
 
         </div>
+        }
       </div>
-      <!-- hr -->
       <hr>
     </div>
+    }
+    }
+    @else {
+    @for(el of stacCollectionsList; track el;) {
+    <div class="collapsible-section">
+      <div class="collapsible-header-div">
+        <div type="button" class="collapsible-header">Collection: {{el}}</div>
+        <div class="mission-filter-slider-div">
+          <label class="switch" title="Toggle mission filter">
+            <input type="checkbox" class="checkbox" (click)="onMissionFilterButtonClicked($event)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="content"></div>
+      <hr>
+    </div>
+    }
+    }
     <div id="advanced-search-footer"></div>
   </div>
   <div id="advanced-search-scroll-thumb"></div>
@@ -135,29 +220,41 @@
 <div id="product-list-container" class="hidden">
   <div id="product-list-div">
     <div id="product-list-header">
-      <div id="page-buttons-div" *ngIf="productTotalNumber > 0">
+      @if(productTotalNumber > 0) {
+      <div id="page-buttons-div">
         <mat-icon id="load-prev" class="load-page-icon" aria-hidden="false" aria-label="load prev page" title="Load prev page" fontIcon="navigate_before" (click)="loadPageFromButtons(-1)"></mat-icon>
         <mat-icon id="load-next" class="load-page-icon" aria-hidden="false" aria-label="load next page" title="Load next page" fontIcon="navigate_next" (click)="loadPageFromButtons(1)"></mat-icon>
       </div>
-      <div id="product-list-header-text" *ngIf="productTotalNumber > 0" title="Order By: {{returnOptionNameFromValue(orderBy, orderByOptions)}} - {{returnOptionNameFromValue(sortBy, sortByOptions)}}">Displaying {{productStartNumber}} to {{productEndNumber}} of {{productTotalNumber}} products</div>
-      <div id="product-list-header-text" *ngIf="productTotalNumber == 0">No products found..</div>
-      <div id="product-list-header-icons-div" *ngIf="productTotalNumber > 0">
+      }
+      @if (productTotalNumber == 0) {
+      <div id="product-list-header-text">No products found..</div>
+      }
+      @if (productTotalNumber > 0) {
+      <div id="product-list-header-text" title="Order By: {{returnOptionNameFromValue(orderBy, orderByOptions)}} - {{returnOptionNameFromValue(sortBy, sortByOptions)}}">Displaying {{productStartNumber}} to {{productEndNumber}} of {{productTotalNumber}} products</div>
+      <div id="product-list-header-icons-div">
         <mat-icon id="detailed-view" class="view-style-icon" aria-hidden="false" aria-label="detailed view" title="Detailed view" fontIcon="format_align_justify" (click)="setListView('detailed')"></mat-icon>
         <mat-icon id="simple-view" class="view-style-icon" aria-hidden="false" aria-label="simple view" title="Simple view" fontIcon="notes" (click)="setListView('simple')"></mat-icon>
         <mat-icon id="minimal-view" class="view-style-icon" aria-hidden="false" aria-label="minimal view" title="Minimal view" fontIcon="short_text" (click)="setListView('minimal')"></mat-icon>
       </div>
+      }
     </div>
     <div id="list-items-parent-container">
       <div id="list-items-container">
-        <div class="list-item-div" *ngFor="let product of productList.value; let idx=index;" [attr.data-productid]="product.Id" (mouseover)="hoverProduct($event)" (mouseleave)="leaveProduct($event)">
-          <div class="product-name-div" *ngIf="product.Name != null && (showSimpleView == showDetailedView)">
+        @for (product of productList.value; let idx = $index; track product;) {
+        <div class="list-item-div" [attr.data-productid]="product.Id" (mouseover)="hoverProduct($event)" (mouseleave)="leaveProduct($event)">
+          @if (product.Name != null && (showSimpleView == showDetailedView)) {
+          <div class="product-name-div">
             <div class="product-name-value">{{product.Name}}</div>
           </div>
-          <div *ngIf="(showSimpleView == false && showDetailedView == false)" class="minimal-buttons-div">
+          }
+          @if (showSimpleView == false && showDetailedView == false) {
+          <div class="minimal-buttons-div">
             <ng-template [ngTemplateOutlet]="progressBar"></ng-template>
             <ng-template [ngTemplateOutlet]="qlButtons"></ng-template>
           </div>
-          <div class="product-data-row-div" *ngIf="product.Name != null && (showSimpleView)">
+          }
+          @if (product.Name != null && (showSimpleView)) {
+          <div class="product-data-row-div">
             <div class="product-data-column-div">
               <div class="product-metadata-column-div">
                 <div class="metadata-row" title="Platform">
@@ -166,76 +263,100 @@
                 </div>
                 <div class="metadata-row" title="Sensing Start">
                   <mat-icon class="metadata-icon" aria-hidden="false" aria-label="product-sensing" fontIcon="today"></mat-icon>
-                  <div class="metadata-value" *ngIf="product.ContentDate.Start != null">{{product.ContentDate.Start}}</div>
+                  @if (product.ContentDate.Start != null) {
+                  <div class="metadata-value">{{product.ContentDate.Start}}</div>
+                  }
                 </div>
                 <div class="metadata-row" title="Size">
                   <mat-icon class="metadata-icon" aria-hidden="false" aria-label="product-size" fontIcon="dns"></mat-icon>
-                  <div class="metadata-value" *ngIf="product.ContentLength != null">{{product.ContentLength}}</div>
+                  @if (product.ContentLength != null) {
+                  <div class="metadata-value">{{product.ContentLength}}</div>
+                  }
                   <div class="metadata-value-italic">bytes</div>
-                  <div class="metadata-value-simplified" *ngIf="product.ContentLength != null">({{simplifyBytes(product.ContentLength)}})</div>
+                  @if (product.ContentLength != null) {
+                  <div class="metadata-value-simplified">({{simplifyBytes(product.ContentLength)}})</div>
+                  }
                 </div>
               </div>
               <ng-template [ngTemplateOutlet]="progressBar"></ng-template>
             </div>
             <div class="tag-ql-div">
               <div class="tag-div">
-                <div class="tag" *ngFor="let tag of product.tags" [ngStyle]="{'background-color': tag.color}" [title]="tag.title ? tag.title.concat(': ').concat(tag.value) : tag.name">
+                @for (tag of product.tags; track tag;) {
+                <div class="tag" [ngStyle]="{'background-color': tag.color}" [title]="tag.title ? tag.title.concat(': ').concat(tag.value) : tag.name">
                   <p>{{beautifyTag(tag.value)}}</p>
                 </div>
+                }
               </div>
 
               <div class="ql-div">
-                <div class="ql" *ngIf="product.hasQL == true && showSimpleView">
+                @if (product.hasQL == true && showSimpleView) {
+                <div class="ql">
                   <img class="quicklook" [src]="product.qlURL">
                 </div>
-                <div class="ql" *ngIf="(product.hasQL == false || product.hasQL == null) && showSimpleView">
+                }
+                @if ((product.hasQL == false || product.hasQL == null) && showSimpleView) {
+                <div class="ql">
                   <img class="quicklook" src="./assets/images/no-preview-1.png">
                 </div>
+                }
 
                 <ng-template [ngTemplateOutlet]="qlButtons"></ng-template>
               </div>
             </div>
           </div>
+          }
 
           <!-- Product Action Buttons Template -->
           <ng-template #qlButtons>
             <div class="ql-buttons-div">
-              <mat-icon *ngIf="product.isSelected === true" class="item-button-icon product-selected" aria-hidden="false" aria-label="Unselect Product" title="Unselect Product" fontIcon="remove"
+              @if (product.isSelected === true) {
+              <mat-icon class="item-button-icon product-selected" aria-hidden="false" aria-label="Unselect Product" title="Unselect Product" fontIcon="remove"
               (click)="onHideProductDetails(product.Id, idx)"></mat-icon>
-              <mat-icon *ngIf="product.isSelected === false" class="item-button-icon product-unselected" aria-hidden="false" aria-label="Select Product" title="Select Product" fontIcon="add"
+              }
+              @if (product.isSelected === false) {
+              <mat-icon class="item-button-icon product-unselected" aria-hidden="false" aria-label="Select Product" title="Select Product" fontIcon="add"
               (click)="onShowProductDetails(product.Id, idx)"></mat-icon>
+              }
               <mat-icon class="material-symbols-outlined item-button-icon" aria-hidden="false" aria-label="Zoom To Map" title="Zoom To Map Position" fontIcon="travel_explore"
               (click)="onZoomToProduct(product.Id)"></mat-icon>
               <mat-icon class="item-button-icon" aria-hidden="false" aria-label="Copy Product Url" title="Copy Product Url" fontIcon="file_copy"
               (click)="copyUrl(product.Id)"></mat-icon>
-              <ng-template [ngIf]="product.download.state" [ngIfElse]="downloadDefault">
-                <mat-icon *ngIf="product.download.state == 'DONE'" class="item-button-icon downloaded" aria-hidden="false" aria-label="Download Product" title="Download Product" fontIcon="download"
-                  (click)="downloadProduct(product.Id, product.Name)"></mat-icon>
-                <mat-icon *ngIf="(product.download.state == 'IN_PROGRESS' || product.download.state == 'PENDING')" class="progress-cancel" aria-hidden="false" aria-label="cancel-download" title="Cancel download" fontIcon="clear"
-                  (click)="unsubscribeDownload(product.Id)"></mat-icon>
-              </ng-template>
-              <ng-template #downloadDefault>
-                <mat-icon class="item-button-icon" aria-hidden="false" aria-label="Download Product" title="Download Product" fontIcon="download"
-                  (click)="downloadProduct(product.Id, product.Name)"></mat-icon>
-              </ng-template>
+              <!-- <ng-template [ngIf]="product.download.state" [ngIfElse]="downloadDefault"> -->
+              @if (product.download.state) {
+              @if (product.download.state == 'DONE') {
+              <mat-icon class="item-button-icon downloaded" aria-hidden="false" aria-label="Download Product" title="Download Product" fontIcon="download"
+                (click)="downloadProduct(product.Id, product.Name)"></mat-icon>
+              }
+              @else if (product.download.state == 'IN_PROGRESS' || product.download.state == 'PENDING') {
+              <mat-icon class="progress-cancel" aria-hidden="false" aria-label="cancel-download" title="Cancel download" fontIcon="clear"
+                (click)="unsubscribeDownload(product.Id)"></mat-icon>
+              }
+              }
+              @else {
+              <mat-icon class="item-button-icon" aria-hidden="false" aria-label="Download Product" title="Download Product" fontIcon="download"
+                (click)="downloadProduct(product.Id, product.Name)"></mat-icon>
+              }
             </div>
           </ng-template>
 
           <!-- Download Progress Bar Template -->
           <ng-template #progressBar>
             <div class="progress-div">
+              @if (product.download && (product.download.state == 'IN_PROGRESS' || product.download.state == 'PENDING' )) {
               <mat-progress-bar class="progress-bar"
-                *ngIf="product.download && (product.download.state == 'IN_PROGRESS' || product.download.state == 'PENDING' )"
                 [mode]="product.download.state == 'PENDING' ? 'determinate' : 'determinate'"
                 [value]="product.download.progress">
               </mat-progress-bar>
-              <div class="progress-value" *ngIf="product.download && (product.download.state == 'IN_PROGRESS' || product.download.state == 'PENDING' )">
+              <div class="progress-value">
                 {{product.download.progress}}%
               </div>
+              }
             </div>
           </ng-template>
 
         </div>
+        }
       </div>
     </div>
   </div>
@@ -261,7 +382,8 @@
       </div>
     </div>
     <div id="product-details-item-list-container">
-      <div class="product-details-item-container" *ngFor="let selectedProduct of selectedProducts; let i = index">
+      @for (selectedProduct of selectedProducts; track selectedProduct;) {
+      <div class="product-details-item-container">
         <div class="product-details-inner-container">
           <div class="product-details-header">
             <p>{{selectedProduct.Name}}</p>
@@ -269,24 +391,31 @@
           <div class="product-details-div">
             <hr>
             <div style="position: relative">
-              <div class="product-details-ql" *ngIf="selectedProduct.hasQL == true">
+              @if (selectedProduct.hasQL == true) {
+              <div class="product-details-ql">
                 <img class="product-details-quicklook" [src]="selectedProduct.qlURL">
               </div>
-              <div class="product-details-ql" *ngIf="(selectedProduct.hasQL == null || selectedProduct.hasQL == false)">
-                <p *ngIf="!(selectedProduct.download.state == 'IN_PROGRESS' || selectedProduct.download.state == 'PENDING' )">No Preview Available</p>
+              }
+              @if (selectedProduct.hasQL == null || selectedProduct.hasQL == false) {
+              <div class="product-details-ql">
+                @if (!(selectedProduct.download.state == 'IN_PROGRESS' || selectedProduct.download.state == 'PENDING' )) {
+                <p>No Preview Available</p>
+                }
               </div>
+              }
               <!-- download buttons -->
               <div class="product-details-download-column-div">
                 <div class="product-details-download-row-div">
                   <div class="progress-div">
+                    @if (selectedProduct.download && (selectedProduct.download.state == 'IN_PROGRESS' || selectedProduct.download.state == 'PENDING' )) {
                     <mat-progress-bar class="progress-bar"
-                      *ngIf="selectedProduct.download && (selectedProduct.download.state == 'IN_PROGRESS' || selectedProduct.download.state == 'PENDING' )"
                       [mode]="selectedProduct.download.state == 'PENDING' ? 'determinate' : 'determinate'"
                       [value]="selectedProduct.download.progress">
                     </mat-progress-bar>
-                    <div class="progress-value" *ngIf="selectedProduct.download && (selectedProduct.download.state == 'IN_PROGRESS' || selectedProduct.download.state == 'PENDING' )">
+                    <div class="progress-value">
                       {{selectedProduct.download.progress}}%
                     </div>
+                    }
                   </div>
                   <div class="product-details-download-buttons-div">
                     <mat-icon class="item-button-icon unselect-product" aria-hidden="false" aria-label="Unselect Product" title="Unselect Product" fontIcon="remove"
@@ -295,19 +424,25 @@
                       (click)="onZoomToList(selectedProduct)"></mat-icon>
                     <mat-icon class="item-button-icon" aria-hidden="false" aria-label="Copy Product Url" title="Copy Product Url" fontIcon="file_copy"
                       (click)="copyUrl(selectedProduct.Id)"></mat-icon>
-                    <ng-template [ngIf]="selectedProduct.download.state" [ngIfElse]="downloadDefault">
-                      <mat-icon *ngIf="selectedProduct.download.state == 'DONE'" class="item-button-icon downloaded" aria-hidden="false" aria-label="Download Product" title="Download Product" fontIcon="download"
+                    @if (selectedProduct.download.state) {
+                      @if (selectedProduct.download.state == 'DONE') {
+                      <mat-icon class="item-button-icon downloaded" aria-hidden="false" aria-label="Download Product" title="Download Product" fontIcon="download"
                         (click)="downloadProduct(selectedProduct.Id, selectedProduct.Name)"></mat-icon>
-                      <mat-icon *ngIf="(selectedProduct.download.state == 'IN_PROGRESS' || selectedProduct.download.state == 'PENDING')" class="progress-cancel" aria-hidden="false" aria-label="cancel-download" title="Cancel download" fontIcon="clear"
+                      }
+                      @else if (selectedProduct.download.state == 'IN_PROGRESS' || selectedProduct.download.state == 'PENDING') {
+                      <mat-icon class="progress-cancel" aria-hidden="false" aria-label="cancel-download" title="Cancel download" fontIcon="clear"
                         (click)="unsubscribeDownload(selectedProduct.Id)"></mat-icon>
-                    </ng-template>
-                    <ng-template #downloadDefault>
+                      }
+                    }
+                    @else {
                       <mat-icon class="item-button-icon" aria-hidden="false" aria-label="Download Product" title="Download Product" fontIcon="download"
                         (click)="downloadProduct(selectedProduct.Id, selectedProduct.Name)"></mat-icon>
-                    </ng-template>
+                    }
                   </div>
                 </div>
-                <div class="product-details-download-column-div-spacer" *ngIf="selectedProduct.hasQL == true"></div>
+                @if (selectedProduct.hasQL == true) {
+                <div class="product-details-download-column-div-spacer"></div>
+                }
               </div>
             </div>
             <hr>
@@ -320,61 +455,91 @@
                   <th style="width: 40%;">Name</th>
                   <th style="width: 60%;">Value</th>
                 </tr>
-                <tr *ngFor="let property of propertiesList" title="{{beautifyCamelCase(property)}}: {{getTypeOf(selectedProduct[property]) === 'object' ? '' : selectedProduct[property]}}">
-                  <td *ngIf="selectedProduct.hasOwnProperty(property)" class="properties-table-name">{{beautifyCamelCase(property)}}</td>
-                  <td *ngIf="selectedProduct.hasOwnProperty(property) && (getTypeOf(selectedProduct[property]) === 'string' || getTypeOf(selectedProduct[property]) === 'number') && selectedProduct[property] !== null" class="properties-table-value">{{selectedProduct[property]}}</td>
-                  <td *ngIf="selectedProduct.hasOwnProperty(property) && (getTypeOf(selectedProduct[property]) === 'object') && beautifyCamelCase(property) !== 'Footprint' && selectedProduct[property] !== null" class="properties-table-value">
+                @for (property of propertiesList; track property;) {
+                <tr title="{{beautifyCamelCase(property)}}: {{getTypeOf(selectedProduct[property]) === 'object' ? '' : selectedProduct[property]}}">
+                  @if (selectedProduct.hasOwnProperty(property)) {
+                  <td class="properties-table-name">{{beautifyCamelCase(property)}}</td>
+                  @if ((getTypeOf(selectedProduct[property]) === 'string' || getTypeOf(selectedProduct[property]) === 'number') && selectedProduct[property] !== null) {
+                  <td class="properties-table-value">{{selectedProduct[property]}}</td>
+                  }
+                  @if ((getTypeOf(selectedProduct[property]) === 'object') && beautifyCamelCase(property) !== 'Footprint' && selectedProduct[property] !== null) {
+                  <td class="properties-table-value">
                     <ng-container [ngTemplateOutlet]='Array.isArray(selectedProduct[property]) ? array : notArray' [ngTemplateOutletContext]="{obj:selectedProduct[property]}" class="properties-table-value"></ng-container>
                     <ng-template #array let-obj='obj'>
-                      <span *ngFor="let item of obj; let idx = index;">
+                      @for (item of obj; let idx = $index; track item;) {
+                      <span>
                         <ng-container [ngTemplateOutlet]='notArray' [ngTemplateOutletContext]="{obj:item, idx:idx}"></ng-container>
                       </span>
+                      }
                     </ng-template>
                     <ng-template #notArray let-obj='obj' let-idx='idx'>
                       <table class="inner-table">
-                        <tr *ngFor="let key of Object.keys(obj)" title="{{key}}: {{obj[key]}}">
+                        @for (key of Object.keys(obj); track key) {
+                        <tr title="{{key}}: {{obj[key]}}">
                           <td style="width: 40%;" class="inner-table-name">{{key}}</td>
                           <td style="width: 60%;" class="inner-table-value">{{obj[key]}}</td>
                         </tr>
-                        <tr *ngIf="idx >= 1">
+                        }
+                        @if (idx >= 1) {
+                        <tr>
                         </tr>
+                        }
                       </table>
                     </ng-template>
                   </td>
-                  <td *ngIf="selectedProduct.hasOwnProperty(property) && getTypeOf(selectedProduct[property]) === 'object' && selectedProduct[property] === null" class="properties-table-value" title="no footprint"></td>
+                  }
+                  @if (getTypeOf(selectedProduct[property]) === 'object' && selectedProduct[property] === null) {
+                    <td class="properties-table-value" title="no footprint"></td>
+                  }
+                  }
+
                 </tr>
+                }
               </table>
               <hr>
               <p>
                 Attributes
               </p>
-              <table *ngIf="selectedProduct.Attributes.length > 0" class="attributes-table">
+              @if (selectedProduct.Attributes.length > 0) {
+              <table class="attributes-table">
                 <tr>
                   <th style="width: 40%;">Name</th>
                   <th style="width: 60%;">Value</th>
                 </tr>
-                <tr *ngFor="let attribute of selectedProduct.Attributes" title="{{beautifyCamelCase(attribute.Name)}}: {{attribute.Value}}">
+                @for (attribute of selectedProduct.Attributes; track attribute) {
+                <tr title="{{beautifyCamelCase(attribute.Name)}}: {{attribute.Value}}">
                   <td class="attribute-table-name">{{beautifyCamelCase(attribute.Name)}}</td>
                   <td class="attribute-table-value">{{attribute.Value}}</td>
                 </tr>
+                }
               </table>
+              }
             </div>
           </div>
         </div>
       </div>
+      }
     </div>
   </div>
 
   <!-- show hide button -->
-  <div id="show-hide-button-container" *ngIf="productTotalNumber > 0">
-    <div id="show-all-product-details" *ngIf="productDetailsContainerIsRolled === true && selectedProducts.length > 0" title="Show All Product Details" (click)="onShowAllProductDetails()">
+  @if (productTotalNumber > 0) {
+  <div id="show-hide-button-container">
+    @if (productDetailsContainerIsRolled === true && selectedProducts.length > 0) {
+    <div id="show-all-product-details" title="Show All Product Details" (click)="onShowAllProductDetails()">
       <mat-icon class="item-button-icon" aria-hidden="false" aria-label="Show All Product Details" fontIcon="visibility_on"></mat-icon>
     </div>
+    }
     <div id="show-hide-button" [title]="productListRolled ? 'Show list' : 'Hide list'" (click)="onShowHideButtonClick($event)">
-      <mat-icon *ngIf="productListRolled == true" id="show-hide-list-icon" class="showHideList-icon" aria-hidden="false" aria-label="showHideList">keyboard_arrow_right</mat-icon>
-      <mat-icon *ngIf="productListRolled == false" id="show-hide-list-icon" class="showHideList-icon" aria-hidden="false" aria-label="showHideList">keyboard_arrow_left</mat-icon>
+      @if (productListRolled == true) {
+      <mat-icon id="show-hide-list-icon" class="showHideList-icon" aria-hidden="false" aria-label="showHideList">keyboard_arrow_right</mat-icon>
+      }
+      @else {
+      <mat-icon id="show-hide-list-icon" class="showHideList-icon" aria-hidden="false" aria-label="showHideList">keyboard_arrow_left</mat-icon>
+      }
     </div>
   </div>
+  }
 </div>
 
 <!-- Footprint selection menu -->
@@ -384,21 +549,25 @@
       Products
     </div>
     <div id="footprint-menu-scrollable-div">
-      <div *ngFor="let product of hoveredProductShownArray" class="footprint-tooltip-list-container">
+      @for (product of hoveredProductShownArray; track product) {
+      <div class="footprint-tooltip-list-container">
         <div class="footprint-tooltip-table-div">
           <table class="footprint-tooltip-table" (mouseover)="onMouseOverTooltipProductTable(product)" (mouseleave)="onMouseLeaveTooltipProductTable()" (mousedown)="onZoomToList(product)">
             <tr>
               <td style="width: 35%;">Platform</td>
               <td style="width: 65%;" title="{{product.platformShortName}}{{product.platformSerialIdentifier}}">{{product.platformShortName}}{{product.platformSerialIdentifier}}</td>
             </tr>
-            <tr *ngFor="let tag of product.tags">
+            @for (tag of product.tags; track tag) {
+            <tr>
               <td>{{tag.name}}</td>
               <td title="{{tag.value}}">{{tag.value}}</td>
             </tr>
+            }
           </table>
         </div>
         <div class="table-spacer"></div>
       </div>
+      }
     </div>
   </div>
   <!-- footprints menu scroll bar -->

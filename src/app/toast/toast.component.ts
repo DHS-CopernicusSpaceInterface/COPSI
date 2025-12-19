@@ -4,9 +4,10 @@ let toastContainerDiv: any;
 let toastMainDiv: any;
 
 @Component({
-  selector: 'app-toast',
-  templateUrl: './toast.component.html',
-  styleUrls: ['./toast.component.scss']
+    selector: 'app-toast',
+    templateUrl: './toast.component.html',
+    styleUrls: ['./toast.component.scss'],
+    standalone: false
 })
 @Injectable({
   providedIn: 'root'

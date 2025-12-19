@@ -7,9 +7,10 @@ import { authFlowConfig } from './services/oauth/auth.config';
 import { ToastComponent } from './toast/toast.component';
 
 @Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss']
+    selector: 'app-root',
+    templateUrl: './app.component.html',
+    styleUrls: ['./app.component.scss'],
+    standalone: false
 })
 export class AppComponent implements OnInit {
 
@@ -27,12 +28,12 @@ export class AppComponent implements OnInit {
     this.initConfig();
     this.configureSSO();
     const userClaims: any = this.oauthService.getIdentityClaims();
-
     this.name = (userClaims && userClaims.name) ? userClaims.name : "";
+
     this.oauthService.events.subscribe(event => {
       if (event instanceof OAuthSuccessEvent) {
         if(event.type == 'token_received') {
-          console.log('token_received');
+          //console.log('token_received');
           if(this.isFirst){
             this.toast.showInfoToast('success', 'LOGIN SUCCESSFUL!')
             this.isFirst = false;
@@ -42,7 +43,7 @@ export class AppComponent implements OnInit {
 
       } else if (event instanceof OAuthInfoEvent) {
         if(event.type == 'token_expires' && AppConfig.settings?.keycloak.useSilentRefresh) {
-          console.log('token is expiring...');
+          //console.log('token is expiring...');
           this.oauthService.refreshToken();
         }
       }
@@ -54,10 +55,15 @@ export class AppComponent implements OnInit {
 
   initConfig() {
     if(AppConfig.settings.keycloak) {
-      this.ssoConfig = AppConfig.settings.keycloak
-
+      const keycloakSettings = AppConfig.settings.keycloak;
+      keycloakSettings.redirectUri = window.location.origin + AppConfig.settings.baseUrl;
+      //keycloakSettings.redirectUri = AppConfig.settings.keycloak.redirectUri;
+      this.ssoConfig = keycloakSettings;
     } else {
-      this.ssoConfig = authFlowConfig;
+      const keycloakSettings = authFlowConfig;
+      keycloakSettings.redirectUri = window.location.origin + AppConfig.settings.baseUrl;
+      //keycloakSettings.redirectUri = AppConfig.settings.keycloak.redirectUri;
+      this.ssoConfig = keycloakSettings;
     }
   }
 

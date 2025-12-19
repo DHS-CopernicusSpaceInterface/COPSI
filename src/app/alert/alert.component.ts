@@ -3,9 +3,10 @@ import { Component, Injectable, OnInit } from '@angular/core';
 declare var $: any;
 
 @Component({
-  selector: 'app-alert',
-  templateUrl: './alert.component.html',
-  styleUrls: ['./alert.component.scss']
+    selector: 'app-alert',
+    templateUrl: './alert.component.html',
+    styleUrls: ['./alert.component.scss'],
+    standalone: false
 })
 @Injectable({
     providedIn: 'root'

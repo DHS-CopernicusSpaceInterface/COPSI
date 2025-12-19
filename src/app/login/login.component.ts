@@ -5,9 +5,10 @@ import { AppConfig } from '../services/app.config';
 import { ExchangeService } from '../services/exchange.service';
 
 @Component({
-  selector: 'app-login',
-  templateUrl: './login.component.html',
-  styleUrls: ['./login.component.scss']
+    selector: 'app-login',
+    templateUrl: './login.component.html',
+    styleUrls: ['./login.component.scss'],
+    standalone: false
 })
 export class LoginComponent implements OnInit, AfterViewInit, OnDestroy {
 
@@ -22,16 +23,16 @@ export class LoginComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     if(this.oauthService.hasValidAccessToken()) {
-      //document.getElementById('main-login-container')!.style.display = 'none';
       this.userIsLogged = true;
+      this.exchangeService.setIsLogged(true);
     } else {
       this.userIsLogged = false
+      this.exchangeService.setIsLogged(false);
     }
     this.setComponentVisibility(this.userIsLogged);
   }
 
   ngAfterViewInit(): void {
-
     this.isLoggedSubscription = this.exchangeService.isLoggedExchange.subscribe((value) => {
       if (typeof(value) === 'boolean') {
         this.setComponentVisibility(value);

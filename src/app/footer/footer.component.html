@@ -2,13 +2,17 @@
   <!-- footer bar -->
   <div id="footer-main-div" (click)="onInfoIconClicked($event)">
     <div class="footer-logo-div">
-      <a *ngFor="let lLogo of infoLogosLeft" href={{lLogo.link}}  target="_blank">
-        <img class="info-logo" src={{lLogo.image}} alt={{lLogo.alt}} title={{lLogo.title}}>
-      </a>
+      @for (lLogo of infoLogosLeft; track lLogo) {
+        <a href={{lLogo.link}}  target="_blank">
+          <img class="info-logo" src={{lLogo.image}} alt={{lLogo.alt}} title={{lLogo.title}}>
+        </a>
+      }
       <div id="footer-separator"></div>
-      <a *ngFor="let rLogo of infoLogosRight" href={{rLogo.link}}  target="_blank">
-        <img class="info-logo" src={{rLogo.image}} alt={{rLogo.alt}} title={{rLogo.title}}>
-      </a>
+      @for (rLogo of infoLogosRight; track rLogo) {
+        <a href={{rLogo.link}}  target="_blank">
+          <img class="info-logo" src={{rLogo.image}} alt={{rLogo.alt}} title={{rLogo.title}}>
+        </a>
+      }
     </div>
     <div id="footer-separator"></div>
     <div class="footer-info-div">

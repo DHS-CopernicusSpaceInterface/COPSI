@@ -1,17 +1,21 @@
-<div id="header-title-div" *ngIf="!(centreInfo && centreInfo.image && centreInfo.name)">
-  <!-- <img id="centre-logo" src="assets/images/logo-asi-white.png" alt="ASI logo">
-  <p id="app-title">Italian National Mirror</p> -->
-  <img id="copsi-logo" src="./assets/images/COPSI_logo.svg" alt="Copsi logo">
-  <p id="app-title"><span>COP</span>ernicus <span>S</span>pace <span>I</span>nterface</p>
-  <!--<img id="copsi-logo" src="assets/images/COPSI_logotipo.svg" alt="Copsi logo">-->
-</div>
-<div id="header-title-div" *ngIf="centreInfo && centreInfo.image && centreInfo.name">
-  <!-- <img id="centre-logo" src="assets/images/logo-asi-white.png" alt="ASI logo">
-  <p id="app-title">Italian National Mirror</p> -->
-  <a id="copsi-logo" href={{centreInfo.link}} target="_blank"><img id="centre-logo" src={{centreInfo.image}} alt={{centreInfo.alt}} title={{centreInfo.title}} ></a>
-  <p id="app-title">{{centreInfo.name}}</p>
-  <!--<img id="copsi-logo" src="assets/images/COPSI_logotipo.svg" alt="Copsi logo">-->
-</div>
+@if (!(centreInfo && centreInfo.image && centreInfo.name)) {
+  <div id="header-title-div">
+    <!-- <img id="centre-logo" src="assets/images/logo-asi-white.png" alt="ASI logo">
+    <p id="app-title">Italian National Mirror</p> -->
+    <img id="copsi-logo" src="./assets/images/COPSI_logo.svg" alt="Copsi logo">
+    <p id="app-title"><span>COP</span>ernicus <span>S</span>pace <span>I</span>nterface</p>
+    <!--<img id="copsi-logo" src="assets/images/COPSI_logotipo.svg" alt="Copsi logo">-->
+  </div>
+}
+@if (centreInfo && centreInfo.image && centreInfo.name) {
+  <div id="header-title-div">
+    <!-- <img id="centre-logo" src="assets/images/logo-asi-white.png" alt="ASI logo">
+    <p id="app-title">Italian National Mirror</p> -->
+    <a id="copsi-logo" href={{centreInfo.link}} target="_blank"><img id="centre-logo" src={{centreInfo.image}} alt={{centreInfo.alt}} title={{centreInfo.title}} ></a>
+    <p id="app-title">{{centreInfo.name}}</p>
+    <!--<img id="copsi-logo" src="assets/images/COPSI_logotipo.svg" alt="Copsi logo">-->
+  </div>
+}
 <div id="header-menu-div">
   <div class="header-menu-button-div">
     <mat-icon class="header-menu-button" id="user-icon" aria-hidden="false" aria-label="Account icon" fontIcon="account_circle" title="User menu" (click)="onUserMenuIconClick($event)"></mat-icon>
@@ -28,14 +32,18 @@
 
   <hr style="width:100%; margin-bottom: 0.5rem">
 
-  <div *ngIf="showUserEditButton" class="user-option-div" (click)="onEditProfileClicked()">
-    <mat-icon class="user-option-icon" aria-hidden="false" aria-label="edit user icon" fontIcon="edit_user"></mat-icon>
-    <div class="user-option-text">Edit profile</div>
-  </div>
-  <div *ngIf="showPasswordChangeButton" class="user-option-div" (click)="onChangePasswordClicked()">
-    <mat-icon class="user-option-icon" aria-hidden="false" aria-label="change user password icon" fontIcon="key"></mat-icon>
-    <div class="user-option-text">Change password</div>
-  </div>
+  @if (showUserEditButton) {
+    <div class="user-option-div" (click)="onEditProfileClicked()">
+      <mat-icon class="user-option-icon" aria-hidden="false" aria-label="edit user icon" fontIcon="edit_user"></mat-icon>
+      <div class="user-option-text">Edit profile</div>
+    </div>
+  }
+  @if (showPasswordChangeButton) {
+    <div class="user-option-div" (click)="onChangePasswordClicked()">
+      <mat-icon class="user-option-icon" aria-hidden="false" aria-label="change user password icon" fontIcon="key"></mat-icon>
+      <div class="user-option-text">Change password</div>
+    </div>
+  }
   <div class="user-option-div" (click)="onLogoutClicked()">
     <mat-icon class="user-option-icon" aria-hidden="false" aria-label="logout icon" fontIcon="logout"></mat-icon>
     <div class="user-option-text">Logout</div>
@@ -45,7 +53,7 @@
 <div id="settings-menu" [@headerMenuAnimation]="showSettings ? 'open' : 'closed'" (mouseover)="onSettingsMenuHover($event)" (mouseleave)="setSettingsMenuTimeout()">
   <div id="settings-menu-header">
     <mat-icon id="settings-image" aria-hidden="false" aria-label="Settings image" fontIcon="settings"></mat-icon>
-    <p>Map Settings</p>
+    <p>Settings</p>
   </div>
 
   <hr style="width:100%;">
@@ -56,7 +64,7 @@
     <!-- Map Projection -->
     <div class="menu-item-div">
       <label for="map-style">Map projection:</label>
-      <div class="map-settings-buttons" id="map-style" (click)="onMapStyleButtonClicked()">{{(mapStyle == 'globe' ? 'Globe View' : "Plane View")}}</div>
+      <div class="settings-buttons" id="map-style" (click)="onMapStyleButtonClicked()">{{(mapStyle == 'globe' ? 'Globe View' : "Plane View")}}</div>
     </div>
     <div id="style-container" class="settings-sub-container" (mouseover)="onStylesMenuHover($event)" (mouseleave)="onStyleMenuLeave($event)">
       <div class="selection-item" (click)="onMapStyleChanged('globe')">
@@ -71,20 +79,22 @@
 
     <!-- Map Layer -->
     <div class="menu-item-div">
-      <label for="map-layer">Map layer:</label>
-      <div class="map-settings-buttons" id="map-layer" (click)="onMapLayerButtonClicked()">{{mapLayer}}</div>
+      <label for="map-layer">Map style:</label>
+      <div class="settings-buttons" id="map-layer" (click)="onMapLayerButtonClicked()">{{mapLayer}}</div>
     </div>
     <div id="layer-container" class="settings-sub-container" (mouseover)="onLayersMenuHover($event)" (mouseleave)="onLayerMenuLeave($event)">
-      <div class="selection-item" *ngFor="let style of mapLayers; let i = index" (click)="onMapLayerChanged(style.name)">
-        <label for="layer-item">{{style.name}}</label>
-        <img id="layer-item" src={{mapLayersPreviewpaths[i].path}} alt={{mapLayersPreviewpaths[i].name}}>
-      </div>
+      @for (style of mapLayers; track style; let i = $index) {
+        <div class="selection-item" (click)="onMapLayerChanged(style.name)">
+          <label for="layer-item">{{style.name}}</label>
+          <img id="layer-item" src={{mapLayersPreviewpaths[i].path}} alt={{mapLayersPreviewpaths[i].name}}>
+        </div>
+      }
     </div>
 
     <!-- Map Overlay -->
-    <div class="menu-item-div">
+    <!-- <div class="menu-item-div">
       <label for="map-overlay">Map overlay:</label>
-      <div class="map-settings-buttons" id="map-overlay" (click)="onMapOverlayButtonClicked()">{{mapOverlay}}</div>
+      <div class="settings-buttons" id="map-overlay" (click)="onMapOverlayButtonClicked()">{{mapOverlay}}</div>
     </div>
     <div id="overlay-container" class="settings-sub-container" (mouseover)="onOverlaysMenuHover($event)" (mouseleave)="onOverlaysMenuLeave($event)">
       <div class="selection-item" (click)="onMapOverlayChanged(mapOverlays[0].name)">
@@ -95,13 +105,32 @@
         <label for="overlay-item">Overlay</label>
         <img id="overlay-item" src={{mapOverlaysPreviewpaths[1].path}} alt={{mapOverlaysPreviewpaths[1].name}}>
       </div>
-    </div>
+    </div> -->
 
     <!-- Geo Toolbar -->
     <div class="menu-item-div">
       <label for="show-geo-search-toolbar">Geo-search Toolbar:</label>
-      <div class="map-settings-buttons" id="show-geo-search-toolbar" (click)="onShowGeoSearchToolbarClicked($event)">{{showGeoSearchToolbar ? 'Hide' : 'Show'}}</div>
+      <div class="settings-buttons" id="show-geo-search-toolbar" (click)="onShowGeoSearchToolbarClicked($event)">{{showGeoSearchToolbar ? 'Hide' : 'Show'}}</div>
     </div>
     <div class="vertical-spacer"></div>
+  </div>
+
+  <hr style="width:100%;">
+  <div id="menu-items-container">
+    <div class="vertical-spacer"></div>
+
+    <!-- GSS Protocol -->
+    <div class="menu-item-div">
+      <label for="gss-protocol">GSS Protocol:</label>
+      <div class="settings-buttons" id="gss-protocol" (click)="onGssProtocolButtonClicked($event)">{{gssSelectedProtocol}}</div>
+    </div>
+    <div id="protocol-container" class="settings-sub-container" (mouseover)="onProtocolMenuHover($event)" (mouseleave)="onProtocolMenuLeave($event)">
+      <div class="selection-item" [class.deactivated]="!isOdataActive" (click)="onGssProtocolChanged('OData')">
+        <label for="selection-globe">OData</label>
+      </div>
+      <div class="selection-item" [class.deactivated]="!isStacActive" (click)="onGssProtocolChanged('STAC')">
+        <label for="selection-plane">STAC</label>
+      </div>
+    </div>
   </div>
 </div>

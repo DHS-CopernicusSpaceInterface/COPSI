@@ -1,5 +1,5 @@
 {
-  "version": "3.0.1",
+  "version": "4.0.1",
   "centreInfo": {
       "name": "",
       "image": "",
@@ -7,9 +7,26 @@
       "alt": "",
       "title": ""
   },
-  "baseUrl": "",
+  "baseUrl": "/",
+  "serviceUrl": "https://dhs-test.onda-dias.eu/gss-cat-02",
+  "serviceUrlStac": "https://dhs-test.onda-dias.eu/stac-02",
+  "odataVersion": "v2",
+  "keycloak": {
+    "issuer": "https://collaborative-dhs.onda-dias.eu/auth/realms/collaborative-dhs",
+      "editProfileUrl": "<issuer>/account/?referrer=<clientId>#/personal-info",
+      "changePasswordUrl": "<issuer>/account/?referrer=<clientId>#/security/signingin",
+    "clientId": "ivv-gss1-client",
+      "responseType": "code",
+      "scope": "openid profile email",
+      "requireHttps": false,
+      "showDebugInformation": false,
+      "disableAtHashCheck": true,
+      "useSilentRefresh": false
+  },
+
   "searchOptions": {
     "productsPerPage": 100,
+    "productsPerPageStac": 100,
     "orderByOptions": [
       {
         "name": "Publication Date",
@@ -32,7 +49,12 @@
     ],
     "hideFilterOutputTimeout": 2000,
     "filterOutputIsPinnedByDefault": true,
-    "useMultipleAttributesInOption": true
+    "useMultipleAttributesInOption": true,
+    "gssSupportedProtocols": [
+      "OData",
+      "STAC"
+    ],
+    "defaultGssProtocol": "STAC"
   },
   "headerSettings": {
     "showUserEditButton": true,
@@ -40,14 +62,14 @@
     "menuAutoHideTimeout": 2000
   },
   "mapSettings": {
-    "initialViewState": {
+      "initialViewState": {
         "longitude": 2.27,
         "latitude": 38.86,
         "zoom": 1.7,
         "minZoom": 1.2,
         "maxZoom": 10
-    },
-    "projection": "globe"
+      },
+      "projection": "globe"
   },
   "geoSearchSettings": {
     "showGeoSearchToolbar": true,
@@ -61,40 +83,21 @@
     "borderColorActive": [220, 150, 0, 255]
   },
   "loginSettings": {
-    "text": "Please Sign in to access our service",
-    "buttonText": "Sign in"
+      "text": "Please Sign in to access our service",
+      "buttonText": "Sign in"
   },
-  "keycloak": {
-    "issuer_ALIA": "https://keycloak.alia-space.com/auth/realms/PRIP-S2",
-    "issuer_SERCO_PRIP": "https://prip-test.onda-dias.eu/auth/realms/ivv-prip-realm",
-    "issuer_SERCO_GSS": "https://collaborative-dhs.onda-dias.eu/auth/realms/collaborative-dhs",
-    "issuer": "https://collaborative-dhs.onda-dias.eu/auth/realms/collaborative-dhs",
-    "editProfileUrl": "<issuer>/account/?referrer=<clientId>#/personal-info",
-    "changePasswordUrl": "<issuer>/account/?referrer=<clientId>#/security/signingin",
-    "redirectUri": "http://localhost:4200/home",
-    "redirectUri_": "http://192.168.0.109:4200/home",
-    "clientId_ALIA": "prip-api",
-    "clientId_SERCO": "ivv-prip-client",
-    "clientId_SERCO_GSS": "ivv-gss1-client",
-    "clientId": "ivv-gss1-client",
-    "responseType": "code",
-    "scope": "openid profile email",
-    "requireHttps": false,
-    "showDebugInformation": false,
-    "disableAtHashCheck": true,
-    "useSilentRefresh": true,
-    "useSilentRefresh_": false
-  },
-  "quicklookURL": "<base_url>/odata/v1/Products(<uuid>)/AttachedFiles('quick-look.jpg')/$value",
+  "quicklookURL": "<base_url>/odata/<odata_version>/Products(<uuid>)/AttachedFiles('quick-look.jpg')/$value",
+  "quicklookURLStac": "<base_url>/stac/download/quicklook/<productName>",
   "infoLogosLeft": [
-    { "link": "https://www.esa.int/", "image": "./assets/images/ESA_logo_2020_White_cut.png", "title": "Visit ESA website", "alt": "ESA logo" },
-    { "link": "https://european-union.europa.eu/", "image": "./assets/images/logoEU.svg", "title": "Visit EU website", "alt": "EU logo" },
-    { "link": "http://www.copernicus.eu", "image": "./assets/images/copernicus_eu_logo_blu_white.png", "title": "Visit Copernicus website", "alt": "Copernicus logo" },
-    { "link": "https://ivvproxy.onda.onda-dias.com/col-dhs-website/", "image": "./assets/images/logoDHS.png", "title": "Visit DHS website" , "alt": "DHS logo"}
+      { "link": "https://www.esa.int/", "image": "./assets/images/ESA_logo_2020_White_cut.png", "title": "Visit ESA website", "alt": "ESA logo" },
+      { "link": "https://european-union.europa.eu/", "image": "./assets/images/logoEU.svg", "title": "Visit EU website", "alt": "EU logo" },
+      { "link": "http://www.copernicus.eu", "image": "./assets/images/copernicus_eu_logo_blu_white.png", "title": "Visit Copernicus website", "alt": "Copernicus logo" },
+      { "link": "https://ivvproxy.onda.onda-dias.com/col-dhs-website/", "image": "./assets/images/logoDHS.png", "title": "Visit DHS website" , "alt": "DHS logo"}
+
   ],
   "infoLogosRight": [
-    { "link": "https://www.serco.com/", "image": "./assets/images/logo-serco-grey_cut.png", "title": "Visit Serco website", "alt": "Serco logo"  },
-    { "link": "http://www.alia-space.com/", "image": "./assets/images/logo_alia_white.png", "title": "Visit Alia website", "alt": "Alia Space logo"  }
+      { "link": "https://www.serco.com/", "image": "./assets/images/logo-serco-grey_cut.png", "title": "Visit Serco website", "alt": "Serco logo"  },
+      { "link": "http://www.alia-space.com/", "image": "./assets/images/logo_alia_white.png", "title": "Visit Alia website", "alt": "Alia Space logo"  }
   ],
   "footprints": {
     "fallBackColor": "#808080cc",
@@ -109,38 +112,28 @@
   },
   "styles": [
     {
-      "name": "Terrain",
-      "url": "https://tiles.maps.eox.at/wmts/1.0.0/terrain_3857/default/g/{z}/{y}/{x}.jpg"
-    },
-    {
       "name": "OSM",
-      "url": "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      "url": "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "path": "./assets/images/Preview_OSM.png",
+      "seaColor": [0, 0, 0],
+      "terrainColor": [0, 0, 0],
+      "borderColor": [0, 0, 0]
     },
     {
-      "name": "Terrain Light",
-      "url": "https://tiles.maps.eox.at/wmts/1.0.0/terrain-light_3857/default/g/{z}/{y}/{x}.jpg"
+      "name": "Flat - Natural",
+      "url": "",
+      "path": "./assets/images/Preview_Flat_Natural.png",
+      "seaColor": [30, 70, 140],
+      "terrainColor": [80, 120, 60],
+      "borderColor": [0, 0, 0]
     },
     {
-      "name": "Black Marble",
-      "url": "https://tiles.maps.eox.at/wmts/1.0.0/blackmarble_3857/default/g/{z}/{y}/{x}.jpg"
-    },
-    {
-      "name": "Blue Marble",
-      "url": "https://tiles.maps.eox.at/wmts/1.0.0/bluemarble_3857/default/g/{z}/{y}/{x}.jpg"
-    },
-    {
-      "name": "S2 Cloudless",
-      "url": "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg"
-    }
-  ],
-  "overlays": [
-    {
-      "name": "No Overlay",
-      "url": ""
-    },
-    {
-      "name": "Overlay",
-      "url": "https://tiles.maps.eox.at/wmts/1.0.0/overlay_bright_3857/default/g/{z}/{y}/{x}.jpg"
+      "name": "Flat - Grey",
+      "url": "",
+      "path": "./assets/images/Preview_Flat_Grey.png",
+      "seaColor": [60, 60, 60],
+      "terrainColor": [120, 120, 120],
+      "borderColor": [0, 0, 0]
     }
   ],
   "platformDetailsList": [
@@ -181,6 +174,13 @@
           "title": "Timeliness"
         }
       ],
+      "stacTags": {
+        "productType": "product:type",
+        "operationalMode": "sar:instrument_mode",
+        "polarisationChannels": "sar:polarizations",
+        "orbitNumber": "sat:absolute_orbit",
+        "timeliness": "product:timeliness"
+      },
       "filters": [
         {
           "name": "Platform Identifier",
@@ -188,7 +188,9 @@
           "attributeType": "OData.CSC.StringAttribute",
           "value": [
             "A",
-            "B"
+            "B",
+            "C",
+            "D"
           ],
           "selectedValues": []
         },
@@ -298,7 +300,7 @@
     {
       "name": "Mission",
       "mission": "Sentinel-2",
-      "value": "Sentinel-2",
+      "value": "SENTINEL-2",
       "attributeName": "platformShortName",
       "attributeType": "OData.CSC.StringAttribute",
       "fillColor": "#17724564",
@@ -332,6 +334,13 @@
           "title": "Datastrip Identifier"
         }
       ],
+      "stacTags": {
+        "productType": "product:type",
+        "operationalMode": "sar:instrument_mode",
+        "polarisationChannels": "sar:polarizations",
+        "orbitNumber": "sat:absolute_orbit",
+        "timeliness": "product:timeliness"
+      },
       "filters": [
         {
           "name": "Platform Identifier",
@@ -339,7 +348,8 @@
           "attributeType": "OData.CSC.StringAttribute",
           "value": [
             "A",
-            "B"
+            "B",
+            "C"
           ],
           "selectedValues": []
         },
@@ -413,6 +423,13 @@
           "title": "Instrument"
         }
       ],
+      "stacTags": {
+        "productType": "product:type",
+        "operationalMode": "sar:instrument_mode",
+        "polarisationChannels": "sar:polarizations",
+        "orbitNumber": "sat:absolute_orbit",
+        "timeliness": "product:timeliness"
+      },
       "filters": [
         {
           "name": "Platform Identifier",
@@ -527,6 +544,13 @@
           "title": "Processing Level"
         }
       ],
+      "stacTags": {
+        "productType": "product:type",
+        "operationalMode": "sar:instrument_mode",
+        "polarisationChannels": "sar:polarizations",
+        "orbitNumber": "sat:absolute_orbit",
+        "timeliness": "product:timeliness"
+      },
       "filters": [
         {
           "name": "Product Type",

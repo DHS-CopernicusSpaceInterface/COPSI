@@ -1,4 +1,5 @@
-@import "src/vars";
+@use "src/vars" as *;
+@use "sass:color";
 
 #search-bar-main-div {
   z-index: 3;
@@ -40,7 +41,7 @@ hr {
   width: 100%;
   margin: 0;
   padding: 0;
-  border-color: darken($main-dark-text-color, 35);
+  border-color: color.adjust($main-dark-text-color, $lightness: -35%);
 }
 
 
@@ -98,13 +99,13 @@ hr {
   pointer-events: visible;
 }
 #filter-output-div span {
-  color: darken($main-dark-text-color, 15);
+  color: color.adjust($main-dark-text-color, $lightness: -15%);
   font-size: $search-bar-font-size-small;
   padding: 0;
   margin: 0;
 }
 #filter-output-div p {
-  color: darken($main-dark-text-color, 15);
+  color: color.adjust($main-dark-text-color, $lightness: -15%);
   font-size: $search-bar-font-size-small;
   margin: 0;
   padding: 0 0.5rem 0.2rem 0.5rem;
@@ -118,9 +119,33 @@ hr {
   margin: 0.5rem 0.5rem 0.25rem 0.5rem;
 }
 #filter-output-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.1rem;
   margin: 0;
+  padding: 0;
   font-size: $search-bar-font-size-small;
-  color: darken($main-dark-text-color, 25);
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
+}
+#filter-output-protocol-div {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  background-color: color.adjust($menu-dark-bg-color, $lightness: 10%);
+  border: $main-dark-border;
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  gap: 0.25rem;
+  margin-right: 0.5rem;
+  font-size: $search-bar-font-size-small;
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
+}
+
+#filter-output-protocol-div span {
+  color: $main-dark-text-color;
 }
 
 #filter-output-icons-div {
@@ -168,6 +193,9 @@ hr {
 }
 #filter-output-scrollable-div::-webkit-scrollbar {
   display: none;  /* Chrome */
+}
+#filter-output-scrollable-div pre {
+  margin: 0;
 }
 
 #filter-output-scroll-thumb {
@@ -308,7 +336,7 @@ hr {
 }
 
 .advanced-search-item-div label {
-  color: darken($main-dark-text-color, 25);
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
   font-size: $search-bar-font-size;
 }
 
@@ -357,7 +385,7 @@ hr {
 }
 
 .advanced-search-filter-div label {
-  color: darken($main-dark-text-color, 25);
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
   font-size: $search-bar-font-size;
 }
 
@@ -431,7 +459,7 @@ hr {
   left: 0;
   right: 0;
   border-radius: $switch-height;
-  box-shadow: 0 0 0 1px darken($main-dark-text-color, 35);
+  box-shadow: 0 0 0 1px color.adjust($main-dark-text-color, $lightness: -35%);
   cursor: pointer;
   border: 2px solid transparent;
   overflow: hidden;
@@ -443,19 +471,18 @@ hr {
   content: "";
   width: 100%;
   height: 100%;
-  background-color: darken($main-dark-text-color, 35);
+  background-color: color.adjust($main-dark-text-color, $lightness: -35%);
   border-radius: $switch-height;
   transform: translateX(- calc($switch-width - $switch-height)); /*translateX(-(w-h))*/
   transition: 0.2s;
 }
 
-input:checked + .slider:before {
+.collapsible-header-div.active .slider:before {
   transform: translateX(calc($switch-width - $switch-height)); /*translateX(w-h)*/
   background-color: $copsi-blue;
 }
-
-input:checked + .slider {
-  box-shadow: 0 0 0 1px $copsi-blue;
+.collapsible-header-div.active .slider {
+  box-shadow: 0 0 0 1px $copsi-blue !important;
 }
 
 .content {
@@ -633,6 +660,7 @@ input:invalid {
 #search-input {
   flex-grow: 10;
   margin: 0 1.0rem;
+  font-size: $search-bar-font-size;
 }
 
 #advanced-search-footer {
@@ -723,7 +751,7 @@ input:invalid {
 }
 #sort-order-div p {
   font-size: $search-bar-font-size-small;
-  color: darken($main-dark-text-color, 25);
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
   margin: 0;
   cursor: default;
 }
@@ -731,7 +759,7 @@ input:invalid {
   font-size: 1.0rem;
   line-height: 1rem;
   height: 1.0rem;
-  color: darken($main-dark-text-color, 25);
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
 }
 
 #product-list-header-icons-div {
@@ -917,7 +945,7 @@ input:invalid {
   height: $search-bar-product-icons-dim;
 }
 .metadata-value-italic{
-  color: darken($main-dark-text-color, 20%);
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
   font-style: italic;
   font-size: $search-bar-font-size-small;
 }
@@ -926,7 +954,7 @@ input:invalid {
   font-size: $search-bar-font-size-small;
 }
 .metadata-value-simplified {
-  color: darken($main-dark-text-color, 20%);
+  color: color.adjust($main-dark-text-color, $lightness: -25%);
   font-style: italic;
   text-align: left;
   font-size: $search-bar-font-size-small;
@@ -1290,7 +1318,7 @@ input:invalid {
   border: 1px solid $main-dark-bg-color-opaque;
   text-align: left;
   padding-left: 0.5rem;
-  color: darken($main-dark-text-color, 50);
+  color: color.adjust($main-dark-text-color, $lightness: -50%);
   background-color: $main-dark-bg-color;
 }
 .properties-table td {
@@ -1300,7 +1328,7 @@ input:invalid {
   background-color: $menu-dark-bg-color;
 }
 .properties-table-name {
-  color: darken($main-dark-text-color, 25) !important;
+  color: color.adjust($main-dark-text-color, $lightness: -25%) !important;
 }
 .properties-table-value {
   overflow: hidden;
@@ -1319,7 +1347,7 @@ input:invalid {
 .inner-table th {
   border-width: 0;
   padding-left: 0.5rem;
-  color: darken($main-dark-text-color, 50);
+  color: color.adjust($main-dark-text-color, $lightness: -50%);
   background-color: transparent;
 }
 .inner-table td {
@@ -1329,7 +1357,7 @@ input:invalid {
   background-color: transparent;
 }
 .inner-table-name {
-  color: darken($main-dark-text-color, 25) !important;
+  color: color.adjust($main-dark-text-color, $lightness: -25%) !important;
   white-space: nowrap;
 }
 .inner-table-value {
@@ -1350,7 +1378,7 @@ input:invalid {
   border: 1px solid $main-dark-bg-color-opaque;
   text-align: left;
   padding-left: 0.5rem;
-  color: darken($main-dark-text-color, 50);
+  color: color.adjust($main-dark-text-color, $lightness: -50%);
   background-color: $main-dark-bg-color;
 }
 .attributes-table td {
@@ -1360,7 +1388,7 @@ input:invalid {
   background-color: $menu-dark-bg-color;
 }
 .attribute-table-name {
-  color: darken($main-dark-text-color, 25) !important;
+  color: color.adjust($main-dark-text-color, $lightness: -25%) !important;
 }
 .attribute-table-value {
   overflow: hidden;
@@ -1518,6 +1546,18 @@ input:invalid {
   background-color: $copsi-blue;
   width: calc($product-details-width + 0.13rem);
 }
+
+
+.advanced-search-item-div .stac-disabled {
+  color: color.adjust($main-dark-text-color, $lightness: -50%);
+  cursor: default;
+  pointer-events: none;
+}
+
+.advanced-search-item-div .stac-disabled:hover {
+  color: color.adjust($main-dark-text-color, $lightness: -50%);
+}
+
 
 
 /* Responsiveness */

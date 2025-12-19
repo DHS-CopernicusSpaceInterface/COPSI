@@ -1,11 +1,16 @@
 <div id="canvas-container">
   <canvas id='map-globe'></canvas>
   <canvas id='map-plane'></canvas>
-  <div id="map-attribution" (click)="onMapAttributionClick()">
-    <p id="map-attribution-text" *ngIf="selectedMapStyle !== 'OSM' && mapAttributionIsVisible === true" style="padding: 0.5rem">© <a href="https://maps.eox.at/#data">EOX</a></p>
-    <p id="map-attribution-text" *ngIf="selectedMapStyle === 'OSM' && mapAttributionIsVisible === true" style="padding: 0.5rem">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></p>
-    <p id="map-attribution-text" *ngIf="mapAttributionIsVisible === false" style="padding: 0">©</p>
-  </div>
+  @if (selectedMapStyle === 'OSM') {
+    <div id="map-attribution" (click)="onMapAttributionClick()">
+      @if (mapAttributionIsVisible === true) {
+        <p id="map-attribution-text" style="padding: 0.5rem">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></p>
+      }
+      @if (mapAttributionIsVisible === false) {
+        <p id="map-attribution-text" style="padding: 0">©</p>
+      }
+    </div>
+  }
 </div>
 
 
@@ -25,25 +30,27 @@
         <p>Draw Polygon</p>
       </div>
       <hr>
-      <div class="geo-search-command-div" (click)="this.onCancelDrawingButtonClicked(true)">
-        <img class="svg-icon" src="assets/images/delete-polygon.svg" alt="draw polygon icon" title="Delete polygon"/>
-        <p>Delete Polygon</p>
+        <div class="geo-search-command-div" (click)="this.onCancelDrawingButtonClicked(true)">
+          <img class="svg-icon" src="assets/images/delete-polygon.svg" alt="draw polygon icon" title="Delete polygon"/>
+          <p>Delete Polygon</p>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<div *ngIf="showGeoSearchToolbar && !hideGeoSearchToolbar" id="geosearch-fixed-container">
-  <div id="geosearch-fixed-column-div">
-    <div class="geo-search-command-div" (click)="this.onDrawRectButtonClicked(true)">
-      <img class="svg-icon" src="assets/images/draw-rect.svg" alt="draw rect icon" title="Draw rectangle"/>
-    </div>
-    <div class="geo-search-command-div" (click)="this.onDrawPolygonButtonClicked(true)">
-      <img class="svg-icon" src="assets/images/draw-polygon.svg" alt="draw polygon icon" title="Draw polygon"/>
-    </div>
-    <hr>
-    <div class="geo-search-command-div" (click)="this.onCancelDrawingButtonClicked(true)">
-      <img class="svg-icon" src="assets/images/delete-polygon.svg" alt="draw polygon icon" title="Delete polygon"/>
-    </div>
-  </div>
-</div>
+  @if (showGeoSearchToolbar && !hideGeoSearchToolbar) {
+    <div id="geosearch-fixed-container">
+      <div id="geosearch-fixed-column-div">
+        <div class="geo-search-command-div" (click)="this.onDrawRectButtonClicked(true)">
+          <img class="svg-icon" src="assets/images/draw-rect.svg" alt="draw rect icon" title="Draw rectangle"/>
+        </div>
+        <div class="geo-search-command-div" (click)="this.onDrawPolygonButtonClicked(true)">
+          <img class="svg-icon" src="assets/images/draw-polygon.svg" alt="draw polygon icon" title="Draw polygon"/>
+        </div>
+        <hr>
+          <div class="geo-search-command-div" (click)="this.onCancelDrawingButtonClicked(true)">
+            <img class="svg-icon" src="assets/images/delete-polygon.svg" alt="draw polygon icon" title="Delete polygon"/>
+          </div>
+        </div>
+      </div>
+    }

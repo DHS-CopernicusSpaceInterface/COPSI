@@ -1,9 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpRequest, HttpResponse, HttpHandler, HttpEvent, HttpInterceptor } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { OAuthService, OAuthStorage } from 'angular-oauth2-oidc';
 import { SpinnerComponent } from '../spinner/spinner.component';
 import * as moment from 'moment';
 import { ExchangeService } from '../services/exchange.service';
@@ -19,11 +18,12 @@ export class ErrorInterceptor implements HttpInterceptor {
   NOT_ALLOWED_MSG = "You are not authorized to perform this request.";
   NOT_FOUND_MSG = "Request or product not available on the server.";
   TOO_MANY_MSG = "Maximum number of requests exceeded. Please wait the completion of the ongoing requests.";
-  QL_SUBPATH = "AttachedFiles"
-  DOWNLOAD_SUBPATH = "$value"
-  constructor(private oauthStorage: OAuthStorage,
-              private oauthService: OAuthService,
-              private router: Router,
+  QL_SUBPATH = "AttachedFiles";
+  QL_SUBPATH_STAC = "quicklook";
+  DOWNLOAD_SUBPATH = "$value";
+  DOWNLOAD_SUBPATH_STAC = "download";
+  NO_PREVIEW_SUBPATH = "assets/images/no-preview-1.png";
+  constructor(private router: Router,
               private spinner: SpinnerComponent,
               private exchangeService: ExchangeService,
               private alert: AlertComponent
@@ -31,12 +31,28 @@ export class ErrorInterceptor implements HttpInterceptor {
     if (AppConfig.settings && AppConfig.settings.quicklookSubPath) {
       this.QL_SUBPATH = AppConfig.settings.quicklookSubPath;
     }
+    if (AppConfig.settings && AppConfig.settings.quicklookSubPathStac) {
+      this.QL_SUBPATH_STAC = AppConfig.settings.quicklookSubPathStac;
+    }
+    if (AppConfig.settings && AppConfig.settings.downloadSubPath) {
+      this.DOWNLOAD_SUBPATH = AppConfig.settings.downloadSubPath;
+    }
+    if (AppConfig.settings && AppConfig.settings.downloadSubPathStac) {
+      this.DOWNLOAD_SUBPATH_STAC = AppConfig.settings.downloadSubPathStac;
+    }
   }
 
   intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     /* Spinner Service On */
     const now = moment.now().toLocaleString();
-    if(request.url.indexOf(this.DOWNLOAD_SUBPATH) < 0 && request.url.indexOf("/token") < 0) {
+    if(
+      request.url.indexOf(this.DOWNLOAD_SUBPATH) < 0 &&
+      request.url.indexOf(this.DOWNLOAD_SUBPATH_STAC) < 0 &&
+      request.url.indexOf(this.QL_SUBPATH) < 0 &&
+      request.url.indexOf(this.QL_SUBPATH_STAC) < 0 &&
+      request.url.indexOf(this.NO_PREVIEW_SUBPATH) < 0 &&
+      request.url.indexOf("/token") < 0
+    ) {
       this.spinner.setOn(now);
     }
     return next.handle(request).pipe(
@@ -49,16 +65,20 @@ export class ErrorInterceptor implements HttpInterceptor {
         }
       }),
       catchError(err => {
+        //console.log("DEV - ERRORE: ", err);
         /* Spinner Service Off */
         if(request.url.indexOf(this.DOWNLOAD_SUBPATH) < 0) {
           this.spinner.setOff(now);
         }
         //console.log('Error Interceptor: ', err);
+        if (err.url.indexOf(this.QL_SUBPATH) >= 0 || err.url.indexOf(this.QL_SUBPATH_STAC) >= 0) {
+          return this.getSimplePlaceholderResponse(request);
+        }
 
         switch (err.status) {
           case 401: {
             /* auto logout if 401 response returned from api */
-            console.log("ERROR 401: Not Authorized");
+            //console.log("ERROR 401: Not Authorized");
             //this.oauthService.logOut();
             this.exchangeService.setIsLogged(false);
             break;
@@ -95,7 +115,7 @@ export class ErrorInterceptor implements HttpInterceptor {
             break;
           }
           case 500: {
-            if(request.url.indexOf(this.QL_SUBPATH) < 0) {
+            if(request.url.indexOf(this.QL_SUBPATH) < 0 && request.url.indexOf(this.QL_SUBPATH_STAC) < 0) {
               this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.INTERNAL_SERVER_ERROR_MSG);
             }
             break;
@@ -116,6 +136,20 @@ export class ErrorInterceptor implements HttpInterceptor {
         }
         return throwError(() => err);
       }));
+  }
+
+  private getSimplePlaceholderResponse(request: HttpRequest<any>): Observable<HttpEvent<any>> {
+    const placeholderUrl = 'src/assets/images/no-preview-1.png';
+
+    const httpResponse = new HttpResponse({
+      body: null,
+      headers: request.headers.set('Location', placeholderUrl),
+      status: 200,
+      statusText: 'OK',
+      url: placeholderUrl
+    });
+
+    return of(httpResponse);
   }
 
   reloadCurrentRoute() {

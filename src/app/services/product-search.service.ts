@@ -1,10 +1,10 @@
-import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { catchError, map } from 'rxjs/operators';
+import { Injectable, DestroyRef, inject } from '@angular/core';
+import { HttpClient, HttpEvent, HttpEventType, HttpHeaders } from '@angular/common/http';
+import { catchError, filter, map, tap } from 'rxjs/operators';
 import { forkJoin, Observable, of, throwError } from 'rxjs';
 import { AppConfig } from '../services/app.config';
-import { download, Download } from 'ngx-operators';
-import { saveAs } from 'file-saver';
+import { ExchangeService } from './exchange.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 const httpOptions = {
   headers: new HttpHeaders({
@@ -12,52 +12,95 @@ const httpOptions = {
   })
 };
 
+export interface DownloadProgress {
+  state: 'PENDING' | 'IN_PROGRESS' | 'DONE';
+  progress?: number;
+  blob?: Blob;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ProductSearchService {
+  private gssSelectedProtocol: string = "";
+  private exchangeService = inject(ExchangeService);
+  private destroyRef = inject(DestroyRef);
+  private isLogged = false;
 
-  constructor(private http: HttpClient) { }
-
-  parseFilter(str: string) {
-    //console.log('initial filter: ', str);
-    let filterArray: any = [];
-    const regexContains = /^\*(.*)\*/;
-    const regexStartsWith = /[^;]+\*(?=$|;)/;
-    const regexEndsWith = /^\*(.*)/;
-    const logicTestArray = [
-      "and", "AND", "or", "OR", "("
-    ];
-    let filterPortions: string[] = str.split(' ');
-    let processedString='';
-
-    try {
-      filterPortions.forEach((portion: string) => {
-        if(regexContains.test(portion)) {
-          if (!logicTestArray.includes(filterArray[filterArray.length - 1]) && filterArray.length > 0) {
-            filterArray.push("and");
+  constructor(
+    private http: HttpClient,
+  ) {
+    this.exchangeService.selectedGssProtocol
+      .pipe(
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: (value) => {
+          if (typeof(value) === 'string') {
+            this.gssSelectedProtocol = value;
           }
-          filterArray.push(`contains(Name, '${portion.replace(/\*/g,'')}')`);
-        } else if (regexEndsWith.test(portion)) {
-          if (!logicTestArray.includes(filterArray[filterArray.length - 1]) && filterArray.length > 0) {
-            filterArray.push("and");
-          }
-          filterArray.push(`endswith(Name, '${portion.replace(/\*/g,'')}')`);
-        } else if (regexStartsWith.test(portion)) {
-          if (!logicTestArray.includes(filterArray[filterArray.length - 1]) && filterArray.length > 0) {
-            filterArray.push("and");
-          }
-          filterArray.push(`startswith(Name, '${portion.replace(/\*/g,'')}')`);
-        } else {
-          filterArray.push(portion);
+        },
+        error: (error) => {
+          console.error('Error on processing:', error);
         }
       });
-      processedString = filterArray.join(' ');
-      //console.log('final replacement: ', processedString);
+    this.exchangeService.isLoggedExchange
+      .subscribe({
+        next: (value) => {
+          if (typeof(value) === 'boolean') {
+            this.isLogged = value;
+          }
+        },
+        error: (error) => {
+          console.error('Error on getting logged status', error);
+        }
+      })
+  }
 
-    } catch (error) {
-      console.error("Error converting Filter!");
-      console.error(error);
+  parseFilter(str: string) {
+    let processedString='';
+    if (this.gssSelectedProtocol === "OData") {
+      /* ODATA */
+      let filterArray: any = [];
+      const regexContains = /^\*(.*)\*/;
+      const regexStartsWith = /[^;]+\*(?=$|;)/;
+      const regexEndsWith = /^\*(.*)/;
+      const logicTestArray = [
+        "and", "AND", "or", "OR", "("
+      ];
+      let filterPortions: string[] = str.split(' ');
+
+
+      try {
+        filterPortions.forEach((portion: string) => {
+          if(regexContains.test(portion)) {
+            if (!logicTestArray.includes(filterArray[filterArray.length - 1]) && filterArray.length > 0) {
+              filterArray.push("and");
+            }
+            filterArray.push(`contains(Name, '${portion.replace(/\*/g,'')}')`);
+          } else if (regexEndsWith.test(portion)) {
+            if (!logicTestArray.includes(filterArray[filterArray.length - 1]) && filterArray.length > 0) {
+              filterArray.push("and");
+            }
+            filterArray.push(`endswith(Name, '${portion.replace(/\*/g,'')}')`);
+          } else if (regexStartsWith.test(portion)) {
+            if (!logicTestArray.includes(filterArray[filterArray.length - 1]) && filterArray.length > 0) {
+              filterArray.push("and");
+            }
+            filterArray.push(`startswith(Name, '${portion.replace(/\*/g,'')}')`);
+          } else {
+            filterArray.push(portion);
+          }
+        });
+        processedString = filterArray.join(' ');
+
+      } catch (error) {
+        console.error("Error converting Filter!");
+        console.error(error);
+      }
+    } else {
+      /* STAC */
+      processedString = str;
     }
     return processedString;
   }
@@ -75,9 +118,16 @@ export class ProductSearchService {
       httpOptions
     )
   }
+  getProductsStac(url: string, body: any) {
+    return this.http.post<any>(
+      url,
+      body,
+      httpOptions
+    )
+  }
 
   /*
-   search(searchOptions: any) is used to trigger the odata/v1/Products request
+   search(searchOptions: any) is used to trigger the odata/${this.odataVersion}/Products request
    searchOptions = {
     filter: string (OData filter syntax),
     top: number,
@@ -86,15 +136,12 @@ export class ProductSearchService {
     sort: string (asc|desc)
    }
   */
-  //search(filter: string, top: number, skip: number = 0, order: string='PublicationDate', sort: string='desc') {
   search(searchOptions: any) {
-    //console.log(searchOptions);
-    // return odata/v1/Products?$count=true with additional optional filters response in JSON Format
     let order = 'PublicationDate';
     let sort = 'desc';
     let skip = 0;
-    let productsCountUrl = AppConfig.settings.baseUrl + 'odata/v1/Products?$count=true&$top=1';
-    let productsUrl = AppConfig.settings.baseUrl + 'odata/v1/Products?$expand=Attributes';
+    let productsCountUrl = AppConfig.settings.serviceUrl + `/odata/${AppConfig.settings.odataVersion}/Products?$count=true&$top=1`;
+    let productsUrl = AppConfig.settings.serviceUrl + `/odata/${AppConfig.settings.odataVersion}/Products?$expand=Attributes`;
     //The option $count=true requires only the $filter parameter. No $orderby or $skip is needed for the count.
     //The $top is fixed to 1
     let filter = "";
@@ -130,7 +177,8 @@ export class ProductSearchService {
       sort = searchOptions.sort;
     }
     productsUrl+='&$skip=' + skip + '&$orderby=' + order + ' ' + sort.toLowerCase();
-    //console.log("Sent URL: " + productsUrl);
+
+    console.log("Sent search using OData Filter Object: ", searchOptions);
 
     return forkJoin({
       count: this.getProductsCount(productsCountUrl).pipe(map((res) => res), catchError(e => of(e))),
@@ -150,9 +198,15 @@ export class ProductSearchService {
     )
   }
 
+  searchStac(stacFilter: any) {
+    let productsUrl = AppConfig.settings.serviceUrlStac + '/stac/search';
+    console.log("Sent search using STAC Filter Object: ", stacFilter);
+    return this.getProductsStac(productsUrl, stacFilter).pipe(map((res) => res), catchError(e => of(e)));
+  }
+
   /* getQL(uuid: string) is used to check if there is a quicklook for that product id */
   getQL(uuid: string) {
-    let uuidURL = AppConfig.settings.quicklookURL.replace('<base_url>', AppConfig.settings.baseUrl).replace('<uuid>', uuid);
+    let uuidURL = AppConfig.settings.quicklookURL.replace('<base_url>', AppConfig.settings.serviceUrl).replace('<odata_version>', AppConfig.settings.odataVersion).replace('<uuid>', uuid);
 
     return this.http.get(
       uuidURL, {
@@ -162,11 +216,91 @@ export class ProductSearchService {
       catchError(e => of(e)));
   }
 
-  download(url: string, filename: string): Observable<Download> {
+  /* getQLStac(productName: string) is used to check if there is a quicklook for that product id */
+  getQLStac(productName: string) {
+    let quicklookURL = AppConfig.settings.quicklookURLStac.replace('<base_url>', AppConfig.settings.serviceUrlStac).replace('<productName>', productName);
+
+    return this.http.get(
+      quicklookURL, {
+        responseType: 'blob'
+      })
+    .pipe(
+      catchError(err => {
+        return this.http.get("assets/images/no-preview-1.png", { responseType: 'blob' });
+      }));
+  }
+
+
+
+  private mapHttpEvent(event: HttpEvent<Blob>): DownloadProgress | null {
+    switch (event.type) {
+      case HttpEventType.Sent:
+        return { state: 'PENDING' };
+
+      case HttpEventType.DownloadProgress:
+        if (event.total) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          return {
+            state: 'IN_PROGRESS',
+            progress
+          };
+        }
+        return { state: 'IN_PROGRESS' };
+
+      case HttpEventType.Response:
+        return {
+          state: 'DONE',
+          progress: 100,
+          blob: (event.body === null ? undefined : event.body)
+        };
+
+      default:
+        return null;
+    }
+  }
+
+  download(url: string, filename: string): Observable<DownloadProgress> {
     return this.http.get(url, {
       reportProgress: true,
       observe: 'events',
       responseType: 'blob'
-    }).pipe(download(blob => saveAs(blob, filename)))
+    }).pipe(
+      map(event => this.mapHttpEvent(event)),
+      filter(progress => progress !== null),
+      tap(progress => {
+        if (progress.state === 'DONE' && progress.blob) {
+          this.saveWithLink(progress.blob, filename);
+        }
+      })
+    );
+  }
+
+  checkOdataService() {
+    if (!this.isLogged) return of(null);
+    let checkOdataUrl = AppConfig.settings.serviceUrl + `/odata/${AppConfig.settings.odataVersion}/$metadata`;
+    return this.http.get<any>(checkOdataUrl, {observe: 'response'})
+      .pipe(map((res) => res),
+        catchError(e => of(e))
+      );
+  }
+
+  getCollections() {
+    if (!this.isLogged) return of(null);
+    let collectionsUrl = AppConfig.settings.serviceUrlStac + '/stac/collections';
+    return this.http.get<any>(collectionsUrl, httpOptions)
+      .pipe(map((res) => res),
+        catchError(e => of(e))
+      );
+  }
+  private saveWithLink(blob: Blob, filename: string): void {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   }
 }

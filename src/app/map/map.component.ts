@@ -4,7 +4,7 @@ import { Subscription } from 'rxjs';
 /* Map Imports */
 import { Deck, MapView, _GlobeView as GlobeView, COORDINATE_SYSTEM, FlyToInterpolator } from '@deck.gl/core';
 import { TileLayer } from '@deck.gl/geo-layers';
-import { BitmapLayer, GeoJsonLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { BitmapLayer, GeoJsonLayer, ScatterplotLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import { wktToGeoJSON } from '@terraformer/wkt';
 import { AppConfig } from '../services/app.config';
 import { ToastComponent } from '../toast/toast.component';
@@ -14,7 +14,8 @@ let canvasContainer: any;
 let contextMenuContainer: any;
 let deckGlobe: any;
 let deckPlane: any;
-let mapProjection: string = 'globe';
+let mapProjection: string = 'plane';
+let initialProjection: string = 'globe';
 let initialViewState: any;
 
 /* Data to inject to the GeoJsonLayer */
@@ -27,18 +28,13 @@ let geojsonData: any = {
 /* Base Map Styles Layer Data Array */
 /* Managed default OSM Tile layer */
 let mapLayers: any;
-let mapOverlays: any;
-
 let selectedMapStyleIndex = 0;
-//let selectedMapStyle: string;
-
-let selectedMapOverlayIndex = 0;
-let selectedMapOverlay: string;
 
 @Component({
-  selector: 'app-map',
-  templateUrl: './map.component.html',
-  styleUrls: ['./map.component.scss']
+    selector: 'app-map',
+    templateUrl: './map.component.html',
+    styleUrls: ['./map.component.scss'],
+    standalone: false
 })
 export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
@@ -71,7 +67,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   public polygonAltitudeAddendum: number = 1000000000;
   public circlesAltitudeAddendum: number = 5000000000;
   public footprintZoomMultiplierFactor: number = 0;
-  public selectedMapStyle: string = "";
+  public selectedMapStyle: string = "OSM";
   public mapAttributionIsVisible: boolean = true;
   public mapAttributionShowTimeout: number = 5000;
 
@@ -197,6 +193,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.geoSearchPolygonPresent = false;
     this.changeDrawLayer();
     this.geoSearchOutput = this.convertCoordinatesToGeographicQueryString(this.drawGeoSearchCirclesData);
+    this.exchangeService.updateGeoSearchStac({});
     this.exchangeService.updateGeoSearch(this.geoSearchOutput);
     this.hideContextMenu();
     this.canShowFootprintsMenu = true;
@@ -204,7 +201,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   convertCoordinatesToGeographicQueryString(points: any) {
   /*     Geographic Criteria example from ICD:
-    Https://<service-root-uri>/odata/v1/Products?$filter=OData.CSC.Intersects(
+    Https://<service-root-uri>/odata/<odata-version>/Products?$filter=OData.CSC.Intersects(
       area=geography'SRID=4326;POLYGON((
         -127.8 45.2,
         -138.8 45.2,
@@ -343,6 +340,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         this.drawGeoSearchPolygonData = tempPolygonJson;
         this.changeDrawLayer();
 
+        this.exchangeService.updateGeoSearchStac(this.drawGeoSearchPolygonData.features[0].geometry);
         this.exchangeService.updateGeoSearch(this.geoSearchOutput);
         this.canShowFootprintsMenu = true;
         this.tempDrawPolygonArray = tempPolygonArray;
@@ -401,6 +399,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
             this.geoSearchOutput = this.convertCoordinatesToGeographicQueryString(tempPolygonArray[0]);
           }
 
+          this.exchangeService.updateGeoSearchStac({type: (isCrossing ? "MultiPolygon" : "Polygon"), coordinates: (isCrossing ? tempArrayMulti : tempPolygonArray)});
           this.exchangeService.updateGeoSearch(this.geoSearchOutput);
           this.canShowFootprintsMenu = true;
         } else {
@@ -892,7 +891,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       this.drawGeoSearchCirclesData = tempPointsArray;
       this.changeDrawLayer();
       this.tempDrawPolygonArray = tempPolygonArray;
-
+      this.exchangeService.updateGeoSearchStac(this.drawGeoSearchPolygonData.features[0].geometry);
       this.exchangeService.updateGeoSearch(this.geoSearchOutput);
 
       deckGlobe.setProps({
@@ -1094,6 +1093,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       this.changeDrawLayer();
       this.tempDrawPolygonArray = tempPolygonArray;
 
+      this.exchangeService.updateGeoSearchStac(this.drawGeoSearchPolygonData.features[0].geometry);
       this.exchangeService.updateGeoSearch(this.geoSearchOutput);
 
       deckGlobe.setProps({
@@ -1107,10 +1107,12 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
 
+  public mapLayers: any = AppConfig.settings.styles;
+  public drawTileLayer = (selectedMapStyleIndex === 0 ? true : false);
+
   public productList: any;
   public mapStyleSubscription!: Subscription;
   public mapLayerSubscription!: Subscription;
-  public mapOverlaySubscription!: Subscription;
   public showLabelsSubscription!: Subscription;
   public productListSubscription!: Subscription;
   public showProductIndexSubscription!: Subscription;
@@ -1133,13 +1135,145 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   public selectedFootprintIndex: number[] = [-1];
   public selectedProductIndexes: number[] = [];
 
+  public worldBackgroundFeature = {
+    "type": "FeatureCollection",
+    "name": "background",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [-180, -90],
+            [-180,  90],
+            [ 180,  90],
+            [ 180, -90],
+            [-180, -90]
+          ]]
+        }
+      }
+    ]
+  }
 
   /* Base Map Layer */
   public mapLayerPlane: any;
   public mapLayerGlobe: any;
 
-  public mapOverlayPlane: any;
-  public mapOverlayGlobe: any;
+  // Old style globe background (Sea)
+  /* public backgroundLayerGlobe = new SolidPolygonLayer({
+    id: 'background-globe',
+    data: [[
+      [0, -80],
+      [0, 80],
+      [80, 80],
+      [80, -80],
+      [0, -80]
+    ]],
+    getPolygon: (d: any) => d,
+    getPolygonOffset: (layerIndex:any) => [this.footprintZoomMultiplierFactor, 10000000000],
+    stroked: false,
+    filled: true,
+    //fp64: true,
+    //extruded: true,
+    //getElevation: 100000,
+    visible: !this.drawTileLayer,
+    getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+  }) */
+
+  public backgroundLayerGlobe = new GeoJsonLayer({
+    id: 'background-globe',
+    data: this.worldBackgroundFeature,
+    stroked: false,
+    filled: true,
+    visible: !this.drawTileLayer,
+    pickable: false,
+    extruded: false,
+    getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor,
+    getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+    getPolygonOffset: (layerIndex:any) => [this.footprintZoomMultiplierFactor, -(layerIndex.layerIndex * this.footprintAltitudeFactor + this.footprintAltitudeAddendum)],
+    lineWidthUnits: 'pixels',
+    lineWidthMinPixels: 1,
+    lineWidthMaxPixels: this.defaultFootprintBorderWidth,
+    getLineWidth: 1,
+    wrapLongitude: true,
+    highlightedObjectIndex: -1,
+    fp64: true,
+    parameters: {
+      depthTest: false
+    }
+  });
+
+  public backgroundLayerPlane = new SolidPolygonLayer({
+    id: 'background-plane',
+    data: [
+      [[-180, 90], [0, 90], [180, 90], [180, -90], [0, -90], [-180, -90]]
+    ],
+    getPolygon: (d: any) => d,
+    getPolygonOffset: (layerIndex:any) => [this.footprintZoomMultiplierFactor, -(layerIndex.layerIndex * this.footprintAltitudeFactor + this.footprintAltitudeAddendum)],
+    stroked: false,
+    filled: true,
+    visible: !this.drawTileLayer,
+    getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+  })
+
+  public geoJsonMapLayerGlobe = new GeoJsonLayer({
+    id: 'geo-json-map-layer-globe',
+    // data: AppConfig.settings.baseUrl + 'assets/world-maps/world-countries.geojson', // Highly detailed map
+    data: AppConfig.settings.baseUrl + 'assets/world-maps/ne_50m_admin_0_countries.geojson', // Medium-high detailed map
+    // data: AppConfig.settings.baseUrl + 'assets/world-maps/ne_110m_admin_0_countries.geojson', // Mediumly detailed map
+    // data: AppConfig.settings.baseUrl + 'assets/world-maps/ne_110m_land.geojson', // Lowly detailed map
+    stroked: true,
+    filled: true,
+    visible: !this.drawTileLayer,
+    pickable: false,
+    extruded: false,
+    getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+    getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+    getPolygonOffset: (layerIndex:any) => [this.footprintZoomMultiplierFactor, -(layerIndex.layerIndex * this.footprintAltitudeFactor + this.footprintAltitudeAddendum)],
+    lineWidthUnits: 'pixels',
+    lineWidthMinPixels: 1,
+    lineWidthMaxPixels: this.defaultFootprintBorderWidth,
+    getLineWidth: 1,
+    wrapLongitude: true,
+    highlightedObjectIndex: -1,
+    fp64: true,
+    onDataLoad: () => {
+      if (this.currentProjection === 'globe') {
+        let mapGlobe = document.getElementById('map-globe')!;
+        if (mapGlobe.classList.contains('loading')) mapGlobe.classList.remove('loading');
+      }
+    }
+  });
+
+  public geoJsonMapLayerPlane = new GeoJsonLayer({
+    id: 'geo-json-map-layer-plane',
+    // data: AppConfig.settings.baseUrl + 'assets/world-maps/world-countries.geojson', // Highly detailed map
+    data: AppConfig.settings.baseUrl + 'assets/world-maps/ne_50m_admin_0_countries.geojson', // Medium-high detailed map
+    // data: AppConfig.settings.baseUrl + 'assets/world-maps/ne_110m_admin_0_countries.geojson', // Mediumly detailed map
+    // data: AppConfig.settings.baseUrl + 'assets/world-maps/ne_110m_land.geojson', // Lowly detailed map
+    stroked: true,
+    filled: true,
+    visible: !this.drawTileLayer,
+    pickable: false,
+    extruded: false,
+    getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+    getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+    getPolygonOffset: (layerIndex:any) => [this.footprintZoomMultiplierFactor, -(layerIndex.layerIndex * this.footprintAltitudeFactor + this.footprintAltitudeAddendum)],
+    lineWidthUnits: 'pixels',
+    lineWidthMinPixels: 1,
+    lineWidthMaxPixels: this.defaultFootprintBorderWidth,
+    getLineWidth: 1,
+    wrapLongitude: true,
+    highlightedObjectIndex: -1,
+    fp64: true,
+    onViewportLoad: () => {
+      if (this.currentProjection === 'plane') {
+        let mapPlane = document.getElementById('map-plane')!;
+        if (mapPlane.classList.contains('loading')) mapPlane.classList.remove('loading');
+      }
+    }
+  });
 
   public geojsonLayerPlane = new GeoJsonLayer({
     id: 'geojson-layer',
@@ -1344,8 +1478,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     private toast: ToastComponent
   ) {
     mapLayers = AppConfig.settings.styles;
-    mapOverlays = AppConfig.settings.overlays;
-    mapProjection = AppConfig.settings.mapSettings.projection;
+    mapProjection = initialProjection;
     initialViewState = AppConfig.settings.mapSettings.initialViewState;
 
     this.currentProjection = mapProjection;
@@ -1414,7 +1547,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       }
     });
     this.initMapLayers();
-    this.initMapOverlays();
     this.initMap();
   }
 
@@ -1433,11 +1565,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.mapLayerSubscription = this.exchangeService.selectedMapLayer.subscribe((value) => {
       if (typeof(value) === 'string') {
         this.changeMapLayer(value);
-      }
-    });
-    this.mapOverlaySubscription = this.exchangeService.selectedMapOverlay.subscribe((value) => {
-      if (typeof(value) === 'string') {
-        this.changeMapOverlay(value);
       }
     });
     this.showProductIndexSubscription = this.exchangeService.showProductOnMapExchange.subscribe((value) => {
@@ -1479,7 +1606,11 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         this.onHideGeoSearchToolbar(value);
       }
     });
-
+    setTimeout(() => {
+      mapProjection = AppConfig.settings.mapSettings.projection;
+      this.currentProjection = mapProjection;
+      this.changeMapProjection(this.currentProjection);
+    }, 0);
     setTimeout(() => {
       this.mapAttributionIsVisible = false;
     }, this.mapAttributionShowTimeout);
@@ -1490,7 +1621,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.showLabelsSubscription.unsubscribe();
     this.productListSubscription.unsubscribe();
     this.mapLayerSubscription.unsubscribe();
-    this.mapOverlaySubscription.unsubscribe();
     this.showProductIndexSubscription.unsubscribe();
     this.selectedProductIdSubscription.unsubscribe();
     this.startRectDrawingSubscription.unsubscribe();
@@ -1508,17 +1638,15 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       tileSize: 256,
 
       renderSubLayers: (props: any) => {
-        const {
-          bbox: {west, south, east, north}
-        } = props.tile;
+        const {boundingBox} = props.tile;
 
         return new BitmapLayer(props, {
           data: null,
           image: props.data,
-          _imageCoordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-          bounds: [west, south, east, north]
+          bounds: [boundingBox[0][0], boundingBox[0][1], boundingBox[1][0], boundingBox[1][1]]
         });
       },
+      visibile: this.drawTileLayer,
       getPolygonOffset: (layerIndex:any) => [0, -(layerIndex.layerIndex * 1000)],
       fp64: true
     })
@@ -1530,69 +1658,17 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       tileSize: 256,
 
       renderSubLayers: (props: any) => {
-        const {
-          bbox: {west, south, east, north}
-        } = props.tile;
+        const {boundingBox} = props.tile;
 
         return new BitmapLayer(props, {
           data: null,
           image: props.data,
-          _imageCoordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-          bounds: [west, south, east, north]
+          bounds: [boundingBox[0][0], boundingBox[0][1], boundingBox[1][0], boundingBox[1][1]]
         });
       },
+      visibile: this.drawTileLayer,
       getPolygonOffset: (layerIndex:any) => [0, -(layerIndex.layerIndex * 1000)],
       fp64: true
-    })
-  }
-
-  initMapOverlays() {
-    this.mapOverlayPlane = new TileLayer({
-      id: "mapOverlayLayer",
-      data: mapOverlays[selectedMapOverlayIndex].url,
-      maxZoom: 14,
-      tileSize: 256,
-
-      renderSubLayers: (props: any) => {
-        const {
-          bbox: {west, south, east, north}
-        } = props.tile;
-
-        return new BitmapLayer(props, {
-          data: null,
-          image: props.data,
-          _imageCoordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-          bounds: [west, south, east, north]
-        });
-      },
-      getPolygonOffset: (layerIndex:any) => [0, -(layerIndex.layerIndex * 5000)],
-      fp64: true,
-      visible: false
-    })
-
-    this.mapOverlayGlobe = new TileLayer({
-      id: "mapOverlayLayer",
-      data: (selectedMapOverlayIndex == 0 ? '' : mapOverlays[selectedMapOverlayIndex].url),
-      maxZoom: 14,
-      tileSize: 256,
-
-      renderSubLayers: (props: any) => {
-        const {
-          bbox: {west, south, east, north}
-        } = props.tile;
-
-        return new BitmapLayer(props, {
-          data: null,
-          image: props.data,
-          _imageCoordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-          bounds: [west, south, east, north]
-        });
-      },
-      getPolygonOffset: (layerIndex:any) => {
-        return [0, -(layerIndex.layerIndex * 50000)]
-      },
-      fp64: true,
-      visible: false
     })
   }
 
@@ -1606,7 +1682,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         id: 'globe',
         resolution: 1,
         nearZMultiplier: 1.4, // 1.4 max near limit
-        farZMultiplier: 2.0, // use 2.0
+        farZMultiplier: 2.0,
         controller: {keyboard: false, inertia: true, doubleClickZoom: false},
         clear: true
       }),
@@ -1614,11 +1690,12 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       style: {display: mapProjection === 'globe' ? 'block' : 'none'},
       layers: [
         this.mapLayerGlobe,
+        this.backgroundLayerGlobe,
+        this.geoJsonMapLayerGlobe,
         this.geojsonLayerGlobe,
         this.geojsonLayerGlobeSelected,
         this.drawPolygonLayerGlobe,
-        this.drawCirclesLayerGlobe,
-        this.mapOverlayGlobe
+        this.drawCirclesLayerGlobe
       ],
       onClick: (info: any, event: any) => {
         this.onClickOnMap(info, event)
@@ -1675,11 +1752,12 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       style: {display: mapProjection === 'plane' ? 'block' : 'none'},
       layers: [
         this.mapLayerPlane,
+        this.backgroundLayerPlane,
+        this.geoJsonMapLayerPlane,
         this.geojsonLayerPlane,
         this.geojsonLayerPlaneSelected,
         this.drawPolygonLayerPlane,
-        this.drawCirclesLayerPlane,
-        this.mapOverlayPlane
+        this.drawCirclesLayerPlane
       ],
       wrapLongitude: true,
       onClick: (info: any, event: any) => {
@@ -1779,25 +1857,52 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         getRadius: [this.hoveredObject]
       }
     });
+    this.mapLayerPlane = this.mapLayerPlane.clone({
+      visible: this.drawTileLayer
+    });
+    this.mapLayerGlobe = this.mapLayerGlobe.clone({
+      visible: this.drawTileLayer
+    });
+    this.backgroundLayerPlane = this.backgroundLayerPlane.clone({
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+    })
+    this.geoJsonMapLayerPlane = this.geoJsonMapLayerPlane.clone({
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+      getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+    })
+    this.backgroundLayerGlobe = this.backgroundLayerGlobe.clone({
+      data: this.worldBackgroundFeature,
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+    })
+    this.geoJsonMapLayerGlobe = this.geoJsonMapLayerGlobe.clone({
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+      getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+    })
     /* Update Plane View */
     const layersPlane =  [
       this.mapLayerPlane,
+      this.backgroundLayerPlane,
+      this.geoJsonMapLayerPlane,
       this.geojsonLayerPlane,
       this.geojsonLayerPlaneSelected,
       this.drawPolygonLayerPlane,
-      this.drawCirclesLayerPlane,
-      this.mapOverlayPlane
+      this.drawCirclesLayerPlane
     ]
     deckPlane.setProps({layers: layersPlane});
 
     /* Update Globe View */
     const layersGlobe =  [
       this.mapLayerGlobe,
+      this.backgroundLayerGlobe,
+      this.geoJsonMapLayerGlobe,
       this.geojsonLayerGlobe,
       this.geojsonLayerGlobeSelected,
       this.drawPolygonLayerGlobe,
-      this.drawCirclesLayerGlobe,
-      this.mapOverlayGlobe
+      this.drawCirclesLayerGlobe
     ]
     deckGlobe.setProps({layers: layersGlobe});
   }
@@ -1808,67 +1913,63 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     selectedMapStyleIndex = mapLayers.findIndex(function(item: any, i: any){
       return item.name === layer
     });
+    if (selectedMapStyleIndex === 0) {    // Selected OSM Tile -> Make it visible.
+      this.drawTileLayer = true;
+      this.mapLayerPlane = this.mapLayerPlane.clone({
+        data: mapLayers[selectedMapStyleIndex].url
+      });
+      this.mapLayerGlobe = this.mapLayerGlobe.clone({
+        data: mapLayers[selectedMapStyleIndex].url
+      });
+    } else {
+      this.drawTileLayer = false;
+    }
     this.mapLayerPlane = this.mapLayerPlane.clone({
-      data: mapLayers[selectedMapStyleIndex].url
+      visible: this.drawTileLayer
     });
     this.mapLayerGlobe = this.mapLayerGlobe.clone({
-      data: mapLayers[selectedMapStyleIndex].url
+      visible: this.drawTileLayer
     });
+    this.backgroundLayerPlane = this.backgroundLayerPlane.clone({
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+    })
+    this.geoJsonMapLayerPlane = this.geoJsonMapLayerPlane.clone({
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+      getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+    })
+    this.backgroundLayerGlobe = this.backgroundLayerGlobe.clone({
+      data: this.worldBackgroundFeature,
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+    })
+    this.geoJsonMapLayerGlobe = this.geoJsonMapLayerGlobe.clone({
+      visible: !this.drawTileLayer,
+      getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+      getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+    })
     /* Update Plane View */
     const layersPlane =  [
       this.mapLayerPlane,
+      this.backgroundLayerPlane,
+      this.geoJsonMapLayerPlane,
       this.geojsonLayerPlane,
       this.geojsonLayerPlaneSelected,
       this.drawPolygonLayerPlane,
-      this.drawCirclesLayerPlane,
-      this.mapOverlayPlane
+      this.drawCirclesLayerPlane
     ]
     deckPlane.setProps({layers: layersPlane});
 
     /* Update Globe View */
     const layersGlobe =  [
       this.mapLayerGlobe,
+      this.backgroundLayerGlobe,
+      this.geoJsonMapLayerGlobe,
       this.geojsonLayerGlobe,
       this.geojsonLayerGlobeSelected,
       this.drawPolygonLayerGlobe,
-      this.drawCirclesLayerGlobe,
-      this.mapOverlayGlobe
-    ]
-    deckGlobe.setProps({layers: layersGlobe});
-  }
-
-  changeMapOverlay(overlay: string) {
-    selectedMapOverlay = overlay;
-    selectedMapOverlayIndex = mapOverlays.findIndex(function(item: any, i: any){
-      return item.name === overlay;
-    });
-    this.mapOverlayPlane = this.mapOverlayPlane.clone({
-      data: mapOverlays[selectedMapOverlayIndex].url,
-      visible: true
-    });
-    this.mapOverlayGlobe = this.mapOverlayGlobe.clone({
-      data: mapOverlays[selectedMapOverlayIndex].url,
-      visible: true
-    });
-    /* Update Plane View */
-    const layersPlane =  [
-      this.mapLayerPlane,
-      this.geojsonLayerPlane,
-      this.geojsonLayerPlaneSelected,
-      this.drawPolygonLayerPlane,
-      this.drawCirclesLayerPlane,
-      this.mapOverlayPlane
-    ]
-    deckPlane.setProps({layers: layersPlane});
-
-    /* Update Globe View */
-    const layersGlobe =  [
-      this.mapLayerGlobe,
-      this.geojsonLayerGlobe,
-      this.geojsonLayerGlobeSelected,
-      this.drawPolygonLayerGlobe,
-      this.drawCirclesLayerGlobe,
-      this.mapOverlayGlobe
+      this.drawCirclesLayerGlobe
     ]
     deckGlobe.setProps({layers: layersGlobe});
   }
@@ -1894,7 +1995,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
             }
           });
         }
-
         let tempPlatformArray = this.platformDetailsList.filter((platform: any) => (platform.value === product.platformShortName));
         let tempCustomAttributesArray = this.customAttributesList.filter((customAttribute: any) => {
           return product.Attributes.some((productAttribute: any) => (productAttribute.Name === customAttribute.name && productAttribute.Value === customAttribute.value));
@@ -1942,25 +2042,52 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       this.geojsonLayerPlaneSelected = this.geojsonLayerPlaneSelected.clone({
         data: geojsonData
       })
+      this.mapLayerGlobe = this.mapLayerGlobe.clone({
+        visible: this.drawTileLayer
+      });
+      this.mapLayerPlane = this.mapLayerPlane.clone({
+        visible: this.drawTileLayer
+      });
+      this.backgroundLayerPlane = this.backgroundLayerPlane.clone({
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+      })
+      this.geoJsonMapLayerPlane = this.geoJsonMapLayerPlane.clone({
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+        getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+      })
+      this.backgroundLayerGlobe = this.backgroundLayerGlobe.clone({
+      data: this.worldBackgroundFeature,
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+      })
+      this.geoJsonMapLayerGlobe = this.geoJsonMapLayerGlobe.clone({
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+        getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+      })
       /* Update Plane View */
       const layersPlane =  [
+        this.backgroundLayerPlane,
+        this.geoJsonMapLayerPlane,
         this.mapLayerPlane,
         this.geojsonLayerPlane,
         this.geojsonLayerPlaneSelected,
         this.drawPolygonLayerPlane,
-        this.drawCirclesLayerPlane,
-        this.mapOverlayPlane
+        this.drawCirclesLayerPlane
       ]
       deckPlane.setProps({layers: layersPlane});
 
       /* Update Globe View */
       const layersGlobe =  [
         this.mapLayerGlobe,
+        this.backgroundLayerGlobe,
+        this.geoJsonMapLayerGlobe,
         this.geojsonLayerGlobe,
         this.geojsonLayerGlobeSelected,
         this.drawPolygonLayerGlobe,
-        this.drawCirclesLayerGlobe,
-        this.mapOverlayGlobe
+        this.drawCirclesLayerGlobe
       ]
       deckGlobe.setProps({layers: layersGlobe});
     }
@@ -1997,13 +2124,27 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           getLineColor: [this.selectedFootprintIndex, this.selectedProductIndexes]
         }
       });
+      this.mapLayerGlobe = this.mapLayerGlobe.clone({
+        visible: this.drawTileLayer
+      });
+      this.backgroundLayerGlobe = this.backgroundLayerGlobe.clone({
+      data: this.worldBackgroundFeature,
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+      })
+      this.geoJsonMapLayerGlobe = this.geoJsonMapLayerGlobe.clone({
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+        getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+      })
       const layersGlobe =  [
         this.mapLayerGlobe,
+        this.backgroundLayerGlobe,
+        this.geoJsonMapLayerGlobe,
         this.geojsonLayerGlobe,
         this.geojsonLayerGlobeSelected,
         this.drawPolygonLayerGlobe,
-        this.drawCirclesLayerGlobe,
-        this.mapOverlayGlobe
+        this.drawCirclesLayerGlobe
       ]
       deckGlobe.setProps({layers: layersGlobe});
     } else {
@@ -2031,13 +2172,26 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           getLineColor: [this.selectedFootprintIndex, this.selectedProductIndexes]
         }
       });
+      this.mapLayerPlane = this.mapLayerPlane.clone({
+        visible: this.drawTileLayer
+      });
+      this.backgroundLayerPlane = this.backgroundLayerPlane.clone({
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
+      })
+      this.geoJsonMapLayerPlane = this.geoJsonMapLayerPlane.clone({
+        visible: !this.drawTileLayer,
+        getFillColor: this.mapLayers[selectedMapStyleIndex].terrainColor,
+        getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
+      })
       const layersPlane =  [
         this.mapLayerPlane,
+        this.backgroundLayerPlane,
+        this.geoJsonMapLayerPlane,
         this.geojsonLayerPlane,
         this.geojsonLayerPlaneSelected,
         this.drawPolygonLayerPlane,
-        this.drawCirclesLayerPlane,
-        this.mapOverlayPlane
+        this.drawCirclesLayerPlane
       ]
       deckPlane.setProps({layers: layersPlane});
     }
