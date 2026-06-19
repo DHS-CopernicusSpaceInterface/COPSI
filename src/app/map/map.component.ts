@@ -2,7 +2,7 @@ import { AfterViewInit, Component, OnDestroy, OnInit } from '@angular/core';
 import { ExchangeService } from '../services/exchange.service';
 import { Subscription } from 'rxjs';
 /* Map Imports */
-import { Deck, MapView, _GlobeView as GlobeView, COORDINATE_SYSTEM, FlyToInterpolator } from '@deck.gl/core';
+import { Deck, MapView, _GlobeView as GlobeView, FlyToInterpolator } from '@deck.gl/core';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { BitmapLayer, GeoJsonLayer, ScatterplotLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import { wktToGeoJSON } from '@terraformer/wkt';
@@ -1655,7 +1655,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       id: "mapLayer",
       data: mapLayers[selectedMapStyleIndex].url,
       maxZoom: 14,
-      tileSize: 256,
+      tileSize: 512,
 
       renderSubLayers: (props: any) => {
         const {boundingBox} = props.tile;
@@ -1675,12 +1675,13 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   initMap() {
     deckGlobe = new Deck({
       parameters: {
+        cullMode: 'back',
         cull: true
       },
       initialViewState: initialViewState,
       views: new GlobeView({
         id: 'globe',
-        resolution: 1,
+        resolution: 2,
         nearZMultiplier: 1.4, // 1.4 max near limit
         farZMultiplier: 2.0,
         controller: {keyboard: false, inertia: true, doubleClickZoom: false},
@@ -1737,9 +1738,10 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
     deckPlane = new Deck({
       parameters: {
+        cullMode: 'back',
         cull: true
       },
-      initialViewState: initialViewState,
+      initialViewState: {...initialViewState, "minZoom": 1.0},
       views: new MapView({
         id: 'plane',
         controller: {keyboard: false, inertia: true, doubleClickZoom: false},
@@ -1980,6 +1982,11 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       let featureList: any[] = [];
       this.productList.value.forEach((product: any, index: number) => {
         if (product.GeoFootprint != null) {
+          // Temp test cases:
+          // W_nl-esa-noordwijk,SAT,SGA1-SN5-1B-SWR_C_EUMT_20260314000100_G_D_20260313204140_20260313214012_C_N____.nc*
+          // W_nl-esa-noordwijk,SAT,SGA1-SN5-1B-UVR_C_EUMT_20260316081039_G_D_20260316060743_20260316070438_C_N____.nc*
+          // W_nl-esa-noordwijk,SAT,SGA1-SN5-1B-NIR_C_EUMT_20260227060020_G_D_20260227033935_20260227043442_C_N____.nc*
+
           let tempGeojson = this.getGeojsonFromGeoFootprint(product.GeoFootprint);
           featureList.push(tempGeojson);
         } else if (product.Footprint != null) {
@@ -2058,7 +2065,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         getLineColor: this.mapLayers[selectedMapStyleIndex].borderColor,
       })
       this.backgroundLayerGlobe = this.backgroundLayerGlobe.clone({
-      data: this.worldBackgroundFeature,
+        data: this.worldBackgroundFeature,
         visible: !this.drawTileLayer,
         getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
       })
@@ -2128,7 +2135,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         visible: this.drawTileLayer
       });
       this.backgroundLayerGlobe = this.backgroundLayerGlobe.clone({
-      data: this.worldBackgroundFeature,
+        data: this.worldBackgroundFeature,
         visible: !this.drawTileLayer,
         getFillColor: this.mapLayers[selectedMapStyleIndex].seaColor
       })
@@ -2206,7 +2213,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           initialViewState: {
             longitude: zoomToViewState.centerCoordinates[0],
             latitude: zoomToViewState.centerCoordinates[1],
-            zoom: zoomToViewState.zoomLevel,
+            zoom: zoomToViewState.zoomLevel + (Math.random() * 2 - 1) * 0.00001,
             transitionDuration: 'auto',
             transitionInterpolator: new FlyToInterpolator({
               speed: 1,
@@ -2219,7 +2226,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           initialViewState: {
             longitude: zoomToViewState.centerCoordinates[0],
             latitude: zoomToViewState.centerCoordinates[1],
-            zoom: zoomToViewState.zoomLevel,
+            zoom: zoomToViewState.zoomLevel + (Math.random() * 2 - 1) * 0.00001,
             transitionDuration: 'auto',
             transitionInterpolator: new FlyToInterpolator({
               speed: 1,
@@ -2313,7 +2320,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       tempLatLonBounds = this.calcMinMaxCoordinatesValues(tempCoords);
       centerCoordinates = [(tempLatLonBounds.coordsMax[0] + tempLatLonBounds.coordsMin[0])/2, (tempLatLonBounds.coordsMax[1] + tempLatLonBounds.coordsMin[1])/2];
     } else {
-      this.toast.showInfoToast('success', 'NO FOOTPRINT TO ZOOM TO.');
+      console.error("Footprint coordinates bounds cannot be calculated. Footprint seems not to be valid");
+      this.toast.showInfoToast('success', 'NO VALID FOOTPRINT TO ZOOM TO.');
       return null;
     }
     zoomLevel = this.calcZoomLevelFromLatLonBounds(tempLatLonBounds);
@@ -2329,6 +2337,24 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       if (coord[0] > coordsMax[0]) coordsMax[0] = coord[0];
       if (coord[1] > coordsMax[1]) coordsMax[1] = coord[1];
     });
+    if (coordsMin[0] < -179 && coordsMin[1] < -89 && coordsMax[0] > 179 && coordsMax[1] > 89) {
+      let coordsMin: any[] = [null, null];
+      let coordsMax: any[] = [null, null];
+      coordinates.forEach((coord: number[]) => {
+        if (coord[1] > -10 && coord[1] < 10) {
+          if (coordsMin[0] == null) coordsMin[0] = coord[0];
+          if (coordsMax[0] == null) coordsMax[0] = coord[0];
+
+          if (coord[0] < coordsMin[0]) coordsMin[0] = coord[0];
+          if (coord[0] > coordsMax[0]) coordsMax[0] = coord[0];
+        }
+      });
+      coordsMin[1] = -50;
+      coordsMax[1] = 50;
+      if (coordsMin[0] == -180) coordsMin[0] = 179;
+      if (coordsMax[0] == 180) coordsMax[0] = 180;
+      return {coordsMin, coordsMax};
+    }
     return {coordsMin, coordsMax};
   }
 
@@ -2376,12 +2402,14 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           - Divide coords array on every FirstPoint recurrence
           - If more than one recurrence modify GeoFootprint to MultiPolygon
       */
-      for (var i = 0; i < footprint.coordinates[0].length - 1; i++) {
-        if (this.checkDaylineCrossing([footprint.coordinates[0][i], footprint.coordinates[0][i+1]])) {
-          if (this.arrayEquals(footprint.coordinates[0][i], footprint.coordinates[0][0])) {
-            polygons = this.fixCrossingMultiPolygon(footprint);
-          } else {
-            polygons = this.fixCrossingPolygon(footprint);
+      if (!this.checkDaylineHalfCrossing(footprint.coordinates)) {
+        for (var i = 0; i < footprint.coordinates[0].length - 1; i++) {
+          if (this.checkDaylineCrossing([footprint.coordinates[0][i], footprint.coordinates[0][i+1]])) {
+            if (this.arrayEquals(footprint.coordinates[0][i], footprint.coordinates[0][0])) {
+              polygons = this.fixCrossingMultiPolygon(footprint);
+            } else {
+              polygons = this.fixCrossingPolygon(footprint);
+            }
           }
         }
       }
@@ -2477,6 +2505,23 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   checkDaylineCrossing(line: Array<Array<number>>, angleThreshold: number = 180.0): boolean {
     if (Math.abs(line[1][0] - line[0][0]) > angleThreshold) {
       return true;
+    }
+    return false;
+  }
+
+  checkDaylineHalfCrossing(coordinates: Array<any>): boolean {
+    if (coordinates.length == 1) {
+      if (coordinates[0].length < 5) {
+        return false;
+      }
+      for (let i = 0; i < coordinates[0].length; i++) {
+        if (
+          (coordinates[0][i].includes(179.999999) && coordinates[0][i].includes(90)) ||
+          (coordinates[0][i].includes(179.999999) && coordinates[0][i].includes(-90)) ||
+          (coordinates[0][i].includes(-179.999999) && coordinates[0][i].includes(90)) ||
+          (coordinates[0][i].includes(-179.999999) && coordinates[0][i].includes(-90))
+        ) return true;
+      }
     }
     return false;
   }

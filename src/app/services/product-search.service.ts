@@ -276,22 +276,53 @@ export class ProductSearchService {
   }
 
   checkOdataService() {
-    if (!this.isLogged) return of(null);
-    let checkOdataUrl = AppConfig.settings.serviceUrl + `/odata/${AppConfig.settings.odataVersion}/$metadata`;
-    return this.http.get<any>(checkOdataUrl, {observe: 'response'})
-      .pipe(map((res) => res),
-        catchError(e => of(e))
-      );
+    if (!this.isLogged) return of({ error: false, data: null });
+    const url = AppConfig.settings.serviceUrl + `/odata/${AppConfig.settings.odataVersion}/$metadata`;
+    return this.http.get<any>(url, { observe: 'response' }).pipe(
+      map(res => ({
+        error: false,
+        data: res
+      })),
+      catchError(e => of({
+        error: true,
+        data: null,
+        details: e
+      }))
+    );
   }
 
   getCollections() {
-    if (!this.isLogged) return of(null);
-    let collectionsUrl = AppConfig.settings.serviceUrlStac + '/stac/collections';
-    return this.http.get<any>(collectionsUrl, httpOptions)
-      .pipe(map((res) => res),
-        catchError(e => of(e))
-      );
+    if (!this.isLogged) return of({ error: false, data: null });
+    const url = AppConfig.settings.serviceUrlStac + '/stac/collections';
+    return this.http.get<any>(url, httpOptions).pipe(
+      map(res => ({
+        error: false,
+        data: res
+      })),
+      catchError(e => of({
+        error: true,
+        data: null,
+        details: e
+      }))
+    );
   }
+
+  getQueryables() {
+    if (!this.isLogged) return of({ error: false, data: null });
+    const url = AppConfig.settings.serviceUrlStac + '/stac/queryables';
+    return this.http.get<any>(url, httpOptions).pipe(
+      map(res => ({
+        error: false,
+        data: res
+      })),
+      catchError(e => of({
+        error: true,
+        data: null,
+        details: e
+      }))
+    );
+  }
+
   private saveWithLink(blob: Blob, filename: string): void {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

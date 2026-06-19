@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "serve_gss_test": "ng serve -o --host 0.0.0.0 --port 4200"
+    "serve_gss_test": "ng serve --host 0.0.0.0 --port 4200"
   },
   "private": true,
   "dependencies": {
@@ -21,10 +21,13 @@
     "@angular/platform-browser": "^20.1.2",
     "@angular/platform-browser-dynamic": "^20.1.2",
     "@angular/router": "^20.1.2",
+    "@deck.gl/core": "^9.3.0",
+    "@deck.gl/geo-layers": "^9.3.0",
+    "@deck.gl/layers": "^9.3.0",
     "@terraformer/wkt": "^2.1.2",
     "angular-oauth2-oidc": "^20.0.2",
     "angular-oauth2-oidc-jwks": "^20.0.0",
-    "deck.gl": "^8.8.15",
+    "deck.gl": "^9.3.0",
     "file-saver": "^2.0.5",
     "jwt-decode": "^3.1.2",
     "rxjs": "~7.5.0",
@@ -34,7 +37,7 @@
   },
   "devDependencies": {
     "@angular/build": "^20.1.1",
-    "@angular/cli": "~20.1.1",
+    "@angular/cli": "^20.3.24",
     "@angular/compiler-cli": "^20.1.2",
     "@types/file-saver": "^2.0.5",
     "@types/jasmine": "~4.0.0",

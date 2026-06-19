@@ -18,6 +18,7 @@ export class ErrorInterceptor implements HttpInterceptor {
   NOT_ALLOWED_MSG = "You are not authorized to perform this request.";
   NOT_FOUND_MSG = "Request or product not available on the server.";
   TOO_MANY_MSG = "Maximum number of requests exceeded. Please wait the completion of the ongoing requests.";
+  PROTOCOL_UNAVAILABLE_MSG = "One of the selected GSS protocols is unavailable";
   QL_SUBPATH = "AttachedFiles";
   QL_SUBPATH_STAC = "quicklook";
   DOWNLOAD_SUBPATH = "$value";
@@ -65,7 +66,6 @@ export class ErrorInterceptor implements HttpInterceptor {
         }
       }),
       catchError(err => {
-        //console.log("DEV - ERRORE: ", err);
         /* Spinner Service Off */
         if(request.url.indexOf(this.DOWNLOAD_SUBPATH) < 0) {
           this.spinner.setOff(now);
@@ -78,8 +78,6 @@ export class ErrorInterceptor implements HttpInterceptor {
         switch (err.status) {
           case 401: {
             /* auto logout if 401 response returned from api */
-            //console.log("ERROR 401: Not Authorized");
-            //this.oauthService.logOut();
             this.exchangeService.setIsLogged(false);
             break;
           }
@@ -87,12 +85,6 @@ export class ErrorInterceptor implements HttpInterceptor {
             if(request.url.indexOf(this.QL_SUBPATH) < 0) {
               this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.BAD_REQUEST_MSG);
             }
-            /* Show alert on any other error */
-            /*if (err.error.hasOwnProperty('error')) {
-              this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, err.error.error.message);
-            } else {
-              this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, err.message);
-            }*/
             break;
           }
           case 403: {
@@ -116,20 +108,33 @@ export class ErrorInterceptor implements HttpInterceptor {
           }
           case 500: {
             if(request.url.indexOf(this.QL_SUBPATH) < 0 && request.url.indexOf(this.QL_SUBPATH_STAC) < 0) {
-              this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.INTERNAL_SERVER_ERROR_MSG);
+              this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.INTERNAL_SERVER_ERROR_MSG + "<br><br>" + err.message);
             }
             break;
           }
-          case 503:
+          case 503: {
+            if(request.url.indexOf(this.QL_SUBPATH) < 0) {
+              this.alert.showErrorAlert("ERROR " + err.message, this.SERVICE_GATEWAY_TIMEOUT_MSG);
+            }
+            break;
+          }
           case 504: {
             if(request.url.indexOf(this.QL_SUBPATH) < 0) {
               this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.SERVICE_GATEWAY_TIMEOUT_MSG);
             }
             break;
           }
-          default: {
+          case 200: {
+            // Manage stac communication error which answer with 200 and message: Http failure during parsing for...
             if(request.url.indexOf(this.QL_SUBPATH) < 0) {
-              this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.INTERNAL_SERVER_ERROR_MSG);
+              this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.INTERNAL_SERVER_ERROR_MSG + "<br><br>" + err.message);
+            }
+            break;
+          }
+          default: {
+            console.log("PRINT ERROR: ", err);
+            if(request.url.indexOf(this.QL_SUBPATH) < 0) {
+              this.alert.showErrorAlert("ERROR " + err.status + ": " + err.statusText, this.INTERNAL_SERVER_ERROR_MSG + "<br><br>" + err.message);
             }
             break;
           }

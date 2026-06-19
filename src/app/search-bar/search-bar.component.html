@@ -10,11 +10,21 @@
   <input id="search-input" type="text" placeholder="Type a search string: e.g. *MSIL1C*" [(ngModel)]="filter" (keydown.enter)="onAdvancedSearchSubmit($event)" value="{{filter}}" title="Type a search string">
   }
   @else {
-  <input id="search-input" type="text" placeholder="Type a product name to search" [(ngModel)]="filter" (keydown.enter)="onAdvancedSearchSubmit($event)" value="{{filter}}" title="Type a search string">
+  <input id="search-input" type="text" placeholder="Type a product name to search" [(ngModel)]="filter" (keydown)="onTextSearchKeyDown($event)" (input)="onTextSearchChanged($event)" value="{{filter}}" title="Type a search string">
   }
   <div id="search-magnifier-icon-div">
     <mat-icon id="search-magnifier-icon" aria-hidden="false" aria-label="Search icon" fontIcon="search" title="Perform search" (click)="onAdvancedSearchSubmit($event)"></mat-icon>
   </div>
+</div>
+
+<div id="search-suggestion-div" class="hidden" (mouseover)="onTextSearchSuggestionDivMouseOver($event)">
+  <ul>
+  @for (suggestion of foundSuggestions; track suggestion; let i = $index;) {
+    <li [class.selected]="i === foundSuggestionSelected" (mouseover)="onTextSearchSuggestedMouseOver($event, i)" (mouseleave)="onTextSearchSuggestionDivMouseLeave($event)" (click)="onTextSearchSuggestionMouseClick($event)">
+      {{suggestion}}
+    </li>
+  }
+  </ul>
 </div>
 
 <!-- OData Filter Output -->
@@ -23,14 +33,14 @@
     <div id="filter-output-label">Search filter output:</div>
     <div id="filter-output-icons-div">
       <div id="filter-output-protocol-div">Protocol:<span>{{gssSelectedProtocol}}</span></div>
-      <mat-icon id="copy-search-filter-output-icon" aria-hidden="false" aria-label="copy search filter output icon" title="Copy search filter output" (click)="onCopyOutputClicked($event)">content_copy</mat-icon>
+      <mat-icon id="copy-search-filter-output-icon" aria-hidden="false" aria-label="copy search filter output icon" title="Copy the complete search filter output" (click)="onCopyOutputClicked($event)">content_copy</mat-icon>
       <mat-icon id="pin-search-filter-output-icon" [class]="filterOutputIsPinnedByDefault ? 'pinned' : 'unpinned'" aria-hidden="false" aria-label="pin search filter output icon" [title]="filterOutputIsPinnedByDefault ? 'Unpin search filter output' : 'Pin search filter output'" (click)="onPushPinToggle($event)">push_pin</mat-icon>
     </div>
   </div>
   <hr>
   <div id="filter-output-scrollable-div">
     @if (gssSelectedProtocol === "OData") {
-    <p>
+    <p title="{{parsedFilter}} {{productFilter}} {{attributeFilter}} {{geoFilter}}">
       <span>{{parsedFilter}}</span>
       @if (parsedFilter !== '' && parsedFilter !== undefined && (productFilter !== '' || attributeFilter !== '' || geoFilter !== '')) {
       <span> and </span>
@@ -48,7 +58,7 @@
     }
     @else {
     <p>
-      <span><pre>{{convertStacJsonToOutputString(stacFilter)}}</pre></span>
+      <span><pre title="{{getStringified(stacFilter)}}">{{convertStacJsonToOutputString(stacFilter)}}</pre></span>
     </p>
     }
   </div>
@@ -68,20 +78,12 @@
   <div id="advanced-search-scrollable-container">
     <div class="advanced-search-main-filters">
       <div class="advanced-search-item-div">
-        @if (gssSelectedProtocol === "OData") {
         <label for="order-by">Order by:</label>
         <select class="select" title="Change order value" (change)="onOrderByChanged($event)">
           @for (option of orderByOptions; track option.name;) {
           <option>{{option.name}}</option>
           }
         </select>
-        }
-        @else {
-        <label class="stac-disabled" for="order-by" disabled>Order by:</label>
-        <select class="select stac-disabled" title="Change order value" disabled>
-          <option>---</option>
-        </select>
-        }
       </div>
       <div class="advanced-search-item-div">
         <label for="sort-by">Sort by:</label>
@@ -101,26 +103,12 @@
         </div>
       </div>
       <div class="advanced-search-item-div">
-        @if (gssSelectedProtocol === "OData") {
         <label for="publication-start">Publication date:</label>
         <div class="datepicker-div">
-          <input type="date" class="date" id="publication-start" name="publication-start"
-            [max]="(publicationStopEl.value && publicationStopEl.value === '') ? todayDate : publicationStopEl.value" title="Publication start date"
-            (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
+          <input type="date" class="date" id="publication-start" name="publication-start" [max]="maxPublicationStartDate" title="Publication start date" (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
           <span>-</span>
-          <input type="date" class="date" id="publication-stop" name="publication-stop"
-            [min]="(publicationStartEl.value && publicationStartEl.value === '' ) ? undefined : publicationStartEl.value" [max]="todayDate" title="Publication start date"
-            (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
+          <input type="date" class="date" id="publication-stop" name="publication-stop" [min]="minPublicationStopDate" [max]="todayDate" title="Publication start date" (change)="parseAdvancedFilter()" (click)="onDateClicked($event)">
         </div>
-        }
-        @else {
-        <label for="publication-start" class="stac-disabled">Publication date:</label>
-        <div class="datepicker-div">
-          <input type="date" class="date stac-disabled" id="publication-start" name="publication-start" title="Publication start date" value="">
-          <span class="stac-disabled">-</span>
-          <input type="date" class="date stac-disabled" id="publication-stop" name="publication-stop" title="Publication start date" value="">
-        </div>
-        }
       </div>
     </div>
     <hr>
@@ -206,7 +194,27 @@
           </label>
         </div>
       </div>
-      <div class="content"></div>
+      <div class="content">
+        <!-- @for (filter of stacQueryablesList; let i = $index; track filter;) {
+        <div class="advanced-search-filter-div">
+
+          <label for="filter" title="{{filter.title}}">{{filter.name}}:</label>
+          @if (filter.type == "string") {
+          <input class="input stac" type="string" name="filter" title="{{filter.description}}" (change)="parseAdvancedFilter()">
+          }
+          @if (filter.type == "timestamp") {
+          <input class="input stac" type="date" name="filter" title="{{filter.description}}" (change)="parseAdvancedFilter()">
+          }
+          @if (filter.type == "boolean") {
+          <input class="input stac" type="number" name="filter" [min]="0" [max]="1" title="{{filter.description}}" (change)="parseAdvancedFilter()">
+          }
+          @if (filter.type == "number") {
+           <input class="input stac" type="number" name="filter" [min]="-999999" [max]="999999" [step]="1" title="{{filter.description}}" (change)="parseAdvancedFilter()">
+          }
+
+        </div>
+        } -->
+      </div>
       <hr>
     </div>
     }
@@ -220,16 +228,14 @@
 <div id="product-list-container" class="hidden">
   <div id="product-list-div">
     <div id="product-list-header">
+      @if (productTotalNumber == 0) {
+      <div id="product-list-header-text">No products found..</div>
+      }
       @if(productTotalNumber > 0) {
       <div id="page-buttons-div">
         <mat-icon id="load-prev" class="load-page-icon" aria-hidden="false" aria-label="load prev page" title="Load prev page" fontIcon="navigate_before" (click)="loadPageFromButtons(-1)"></mat-icon>
         <mat-icon id="load-next" class="load-page-icon" aria-hidden="false" aria-label="load next page" title="Load next page" fontIcon="navigate_next" (click)="loadPageFromButtons(1)"></mat-icon>
       </div>
-      }
-      @if (productTotalNumber == 0) {
-      <div id="product-list-header-text">No products found..</div>
-      }
-      @if (productTotalNumber > 0) {
       <div id="product-list-header-text" title="Order By: {{returnOptionNameFromValue(orderBy, orderByOptions)}} - {{returnOptionNameFromValue(sortBy, sortByOptions)}}">Displaying {{productStartNumber}} to {{productEndNumber}} of {{productTotalNumber}} products</div>
       <div id="product-list-header-icons-div">
         <mat-icon id="detailed-view" class="view-style-icon" aria-hidden="false" aria-label="detailed view" title="Detailed view" fontIcon="format_align_justify" (click)="setListView('detailed')"></mat-icon>
@@ -265,6 +271,12 @@
                   <mat-icon class="metadata-icon" aria-hidden="false" aria-label="product-sensing" fontIcon="today"></mat-icon>
                   @if (product.ContentDate.Start != null) {
                   <div class="metadata-value">{{product.ContentDate.Start}}</div>
+                  }
+                </div>
+                <div class="metadata-row" title="Publication Date">
+                  <mat-icon class="metadata-icon" aria-hidden="false" aria-label="product-publication-date" fontIcon="event"></mat-icon>
+                  @if (product.PublicationDate != null) {
+                  <div class="metadata-value">{{product.PublicationDate}}</div>
                   }
                 </div>
                 <div class="metadata-row" title="Size">
@@ -318,8 +330,14 @@
               <mat-icon class="item-button-icon product-unselected" aria-hidden="false" aria-label="Select Product" title="Select Product" fontIcon="add"
               (click)="onShowProductDetails(product.Id, idx)"></mat-icon>
               }
-              <mat-icon class="material-symbols-outlined item-button-icon" aria-hidden="false" aria-label="Zoom To Map" title="Zoom To Map Position" fontIcon="travel_explore"
+              @if (product.Footprint || product.GeoFootprint) {
+                <mat-icon class="material-symbols-outlined item-button-icon" title="Zoom To Map Position" aria-hidden="false" aria-label="Zoom To Map" fontIcon="travel_explore"
               (click)="onZoomToProduct(product.Id)"></mat-icon>
+              }
+              @else {
+                <mat-icon class="material-symbols-outlined item-button-icon disabled" title="Missing Footprint" aria-hidden="false" aria-label="Zoom To Map" fontIcon="travel_explore">
+                </mat-icon>
+              }
               <mat-icon class="item-button-icon" aria-hidden="false" aria-label="Copy Product Url" title="Copy Product Url" fontIcon="file_copy"
               (click)="copyUrl(product.Id)"></mat-icon>
               <!-- <ng-template [ngIf]="product.download.state" [ngIfElse]="downloadDefault"> -->

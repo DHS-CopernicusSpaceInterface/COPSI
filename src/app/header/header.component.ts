@@ -4,6 +4,7 @@ import { ExchangeService } from '../services/exchange.service';
 import { Subscription, throwError } from 'rxjs';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { AppConfig } from '../services/app.config';
+import { AlertComponent } from '../alert/alert.component';
 import jwt_decode from 'jwt-decode';
 
 @Component({
@@ -43,51 +44,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
   public mapStyle: string = '';
   public mapLayer: string = '';
   public mapLayersPreviewpaths: any = AppConfig.settings.styles;
-  /* [
-    {
-      "name": "Terrain",
-      "path": "./assets/images/Preview_Terrain.png",
-    },
-    {
-      "name": "OSM",
-      "path": "./assets/images/Preview_OSM.png"
-    },
-    {
-      "name": "Terrain_Light",
-      "path": "./assets/images/Preview_Terrain_Light.png",
-    },
-    {
-      "name": "Preview_Black_Marble",
-      "path": "./assets/images/Preview_Black_Marble.png",
-    },
-    {
-      "name": "Preview_Blue_Marble",
-      "path": "./assets/images/Preview_Blue_Marble.png",
-    },
-    {
-      "name": "Preview_S2_Cloudless",
-      "path": "./assets/images/Preview_S2_Cloudless.png"
-    }
-  ]; */
-  // public mapOverlays: any;
-  // public mapOverlay: string = '';
-  // public mapOverlaysPreviewpaths: any = [
-  //   {
-  //     "name": "No Overlay",
-  //     "path": "./assets/images/Overlay_None.png",
-  //   },
-  //   {
-  //     "name": "Overlay",
-  //     "path": "./assets/images/Overlay_Bright.png"
-  //   }
-  // ];
   public mapLayerPrevious: string = '';
-  //public mapOverlayPrevious: string = '';
   public showGeoSearchToolbar: boolean = AppConfig.settings.geoSearchSettings.showGeoSearchToolbar;
   public hideGeoSearchToolbar: boolean = false;
 
   public gssProtocols = AppConfig.settings.searchOptions.gssSupportedProtocols;
-  //public gssSelectedProtocol = signal(AppConfig.settings.searchOptions.defaultGssProtocol || this.gssProtocols[0]);
   public gssSelectedProtocol: string = AppConfig.settings.searchOptions.defaultGssProtocol;
 
   isOdataSubscription!: Subscription;
@@ -95,7 +56,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   updateGssProtocolSubscription!: Subscription;
   public isOdataActive: boolean = false;
   public isStacActive: boolean = false;
-  
+
 
   public showUser: boolean = false;
   public showUserTimeoutId: any;
@@ -105,8 +66,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   public showStylesTimeoutId: any;
   public showLayers: boolean = false;
   public showLayersTimeoutId: any;
-  //public showOverlays: boolean = false;
-  //public showOverlaysTimeoutId: any;
   public showProtocols: boolean = false;
   public showProtocolsTimeoutId: any;
   public token: any;
@@ -120,16 +79,19 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   public styleContainer: any;
   public layerContainer: any;
-  //public overlayContainer: any;
-  //public overlayButton: any;
   public protocolContainer: any;
   constructor(
     private exchangeService: ExchangeService,
     private oauthService: OAuthService,
-    private cd: ChangeDetectorRef
+    private cd: ChangeDetectorRef,
+    private alert: AlertComponent
   ) { }
 
   ngOnInit(): void {
+    if (!this.gssProtocols.includes(this.gssSelectedProtocol)) {
+      this.onGssProtocolChanged(this.gssProtocols[0]);
+      this.alert.showErrorAlert("CONFIGURATION ERROR", "Please check gssSupportedProtocols and defaultGssProtocol settings.");
+    }
     const userClaims: any = this.oauthService.getIdentityClaims();
     if (userClaims) {
       this.name = (userClaims && userClaims.preferred_username) ? userClaims.preferred_username : "";
@@ -140,32 +102,30 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.mapLayers = AppConfig.settings.styles;
     this.mapStyle = AppConfig.settings.mapSettings.projection;
     this.mapLayer = this.mapLayers[0].name;
-    //this.mapOverlays = AppConfig.settings.overlays;
-    //this.mapOverlay = this.mapOverlays[0].name;
     this.editProfileUrl = AppConfig.settings.keycloak.editProfileUrl.replace('<issuer>', AppConfig.settings.keycloak.issuer).replace('<clientId>', AppConfig.settings.keycloak.clientId);
     this.changePasswordUrl = AppConfig.settings.keycloak.changePasswordUrl.replace('<issuer>', AppConfig.settings.keycloak.issuer).replace('<clientId>', AppConfig.settings.keycloak.clientId);
 
     this.styleContainer = document.getElementById("style-container")!;
     this.layerContainer = document.getElementById("layer-container")!;
     this.protocolContainer = document.getElementById("protocol-container")!;
-    //this.overlayContainer = document.getElementById("overlay-container")!;
-    //this.overlayButton = document.getElementById("map-overlay")!;
 
     this.isOdataSubscription = this.exchangeService.isOdataActiveExchange.subscribe((value) => {
       if (typeof(value) == 'boolean') {
+        //console.log("isOdataSubscription: ", value);
         this.isOdataActive = value;
       }
     });
 
     this.isStacSubscription = this.exchangeService.isStacActiveExchange.subscribe((value) => {
       if (typeof(value) == 'boolean') {
+        //console.log("isStacSubscription: ", value);
         this.isStacActive = value;
       }
     });
 
     this.updateGssProtocolSubscription = this.exchangeService.selectedGssProtocol.subscribe((value) => {
       if (typeof(value) === 'string') {
-        //this.gssSelectedProtocol.set(value);
+        //console.log("updateGssProtocolSubscription: ", value);
         this.gssSelectedProtocol = value;
         this.cd.detectChanges();
       }
@@ -210,10 +170,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.showStyles = true;
       this.showLayers = false;
       this.showProtocols = false;
-      //this.showOverlays = false;
       this.layerContainer.style.display = 'none';
       this.protocolContainer.style.display = 'none';
-      //this.overlayContainer.style.display = 'none';
       this.setStylesTimeout();
     }
   }
@@ -234,10 +192,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.showStyles = false;
       this.showProtocols = false;
       this.showLayers = true;
-      //this.showOverlays = false;
       this.styleContainer.style.display = 'none';
       this.protocolContainer.style.display = 'none';
-      //this.overlayContainer.style.display = 'none';
       this.setLayersTimeout();
     }
   }
@@ -245,49 +201,14 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.mapLayerPrevious = this.mapLayer;
     this.mapLayer = layer;
     this.exchangeService.setMapLayer(layer);
-    // if (layer === 'OSM') {
-    //   this.onMapOverlayChanged(this.mapOverlays[0].name);
-    //   this.overlayButton.classList.add('disabled');
-    // } else {
-    //   if (this.overlayButton.classList.contains('disabled')) {
-    //     this.overlayButton.classList.remove('disabled');
-    //   }
-    //   if (this.mapOverlayPrevious != this.mapOverlays[0].name && this.mapLayerPrevious === 'OSM') {
-    //     this.onMapOverlayChanged(this.mapOverlayPrevious);
-    //   }
-    // }
     this.cd.detectChanges();
   }
 
   onGssProtocolChanged(protocolSel: string) {
-    //this.gssSelectedProtocol.set(protocolSel);
-    //this.exchangeService.setGssProtocol(this.gssSelectedProtocol());
     this.gssSelectedProtocol = protocolSel;
     this.exchangeService.setGssProtocol(this.gssSelectedProtocol);
     this.cd.detectChanges();
   }
-
-  // onMapOverlayButtonClicked() {
-  //   if (this.showOverlays) {
-  //     this.showOverlays = false;
-  //     this.overlayContainer.style.display = 'none';
-  //     this.exchangeService.hideGeoSearchToolbar(false);
-  //   } else {
-  //     this.exchangeService.hideGeoSearchToolbar(true);
-  //     this.overlayContainer.style.display = 'flex';
-  //     this.showStyles = false;
-  //     this.showLayers = false;
-  //     this.showOverlays = true;
-  //     this.styleContainer.style.display = 'none';
-  //     this.layerContainer.style.display = 'none';
-  //     this.setOverlaysTimeout();
-  //   }
-  // }
-  // onMapOverlayChanged(overlay: string) {
-  //   this.mapOverlayPrevious = this.mapOverlay;
-  //   this.mapOverlay = overlay;
-  //   this.exchangeService.setMapOverlay(overlay);
-  // }
 
   onShowGeoSearchToolbarClicked(event: any) {
     this.showGeoSearchToolbar = !this.showGeoSearchToolbar;
@@ -306,10 +227,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.showStyles = false;
       this.showLayers = false;
       this.showProtocols = true;
-      //this.showOverlays = false;
       this.styleContainer.style.display = 'none';
       this.layerContainer.style.display = 'none';
-      //this.overlayContainer.style.display = 'none';
       this.setProtocolsTimeout();
     }
   }
@@ -348,12 +267,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   onOverlaysMenuHover(event: any) {
     clearTimeout(this.showSettingsTimeoutId);
-    //clearTimeout(this.showOverlaysTimeoutId);
     event.stopPropagation();
   }
   onOverlaysMenuLeave(event: any) {
     this.setSettingsMenuTimeout();
-    //this.setOverlaysTimeout();
     event.stopPropagation();
   }
 
@@ -363,7 +280,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     event.stopPropagation();
   }
   onProtocolMenuLeave(event: any) {
-    this.setSettingsMenuTimeout();    
+    this.setSettingsMenuTimeout();
     this.setProtocolsTimeout();
     event.stopPropagation();
   }
@@ -426,17 +343,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.protocolContainer.style.display = 'none';
     }, AppConfig.settings.headerSettings.menuAutoHideTimeout);
   }
-
-  // setOverlaysTimeout() {
-  //   clearTimeout(this.showOverlaysTimeoutId);
-  //   this.showOverlaysTimeoutId = setTimeout(() => {
-  //     this.showOverlays = false;
-  //     if (this.showStyles == false && this.showLayers == false && this.showGeoSearchToolbar) {
-  //       this.exchangeService.hideGeoSearchToolbar(false);
-  //     }
-  //     this.overlayContainer.style.display = 'none';
-  //   }, AppConfig.settings.headerSettings.menuAutoHideTimeout);
-  // }
 
   decodeToken(token: any) {
     try {

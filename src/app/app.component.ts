@@ -33,7 +33,6 @@ export class AppComponent implements OnInit {
     this.oauthService.events.subscribe(event => {
       if (event instanceof OAuthSuccessEvent) {
         if(event.type == 'token_received') {
-          //console.log('token_received');
           if(this.isFirst){
             this.toast.showInfoToast('success', 'LOGIN SUCCESSFUL!')
             this.isFirst = false;
@@ -43,7 +42,6 @@ export class AppComponent implements OnInit {
 
       } else if (event instanceof OAuthInfoEvent) {
         if(event.type == 'token_expires' && AppConfig.settings?.keycloak.useSilentRefresh) {
-          //console.log('token is expiring...');
           this.oauthService.refreshToken();
         }
       }
@@ -57,12 +55,10 @@ export class AppComponent implements OnInit {
     if(AppConfig.settings.keycloak) {
       const keycloakSettings = AppConfig.settings.keycloak;
       keycloakSettings.redirectUri = window.location.origin + AppConfig.settings.baseUrl;
-      //keycloakSettings.redirectUri = AppConfig.settings.keycloak.redirectUri;
       this.ssoConfig = keycloakSettings;
     } else {
       const keycloakSettings = authFlowConfig;
       keycloakSettings.redirectUri = window.location.origin + AppConfig.settings.baseUrl;
-      //keycloakSettings.redirectUri = AppConfig.settings.keycloak.redirectUri;
       this.ssoConfig = keycloakSettings;
     }
   }
@@ -74,6 +70,7 @@ export class AppComponent implements OnInit {
       this.oauthService.configure(this.ssoConfig);
       this.oauthService.tokenValidationHandler = new JwksValidationHandler();
       this.oauthService.loadDiscoveryDocumentAndTryLogin();
+      this.oauthService.setupAutomaticSilentRefresh();
   }
 
   get token() {

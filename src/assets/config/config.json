@@ -1,5 +1,5 @@
 {
-  "version": "4.0.1",
+  "version": "4.1.1",
   "centreInfo": {
       "name": "",
       "image": "",
@@ -17,24 +17,25 @@
       "changePasswordUrl": "<issuer>/account/?referrer=<clientId>#/security/signingin",
       "clientId": "<client_id>",
       "responseType": "code",
-      "scope": "openid profile email",
+      "scope": "openid profile email offline_access",
       "requireHttps": false,
       "showDebugInformation": false,
       "disableAtHashCheck": true,
       "useSilentRefresh": false
   },
-
   "searchOptions": {
     "productsPerPage": 100,
     "productsPerPageStac": 100,
     "orderByOptions": [
       {
         "name": "Publication Date",
-        "value": "PublicationDate"
+        "value": "PublicationDate",
+        "stacValue": "properties.published"
       },
       {
         "name": "Sensing Date",
-        "value": "ContentDate/Start"
+        "value": "ContentDate/Start",
+        "stacValue": "properties.datetime"
       }
     ],
     "sortByOptions": [
@@ -65,9 +66,9 @@
       "initialViewState": {
         "longitude": 2.27,
         "latitude": 38.86,
-        "zoom": 1.7,
-        "minZoom": 1.2,
-        "maxZoom": 10
+        "zoom": 3.0,
+        "minZoom": 2.5,
+        "maxZoom": 12
       },
       "projection": "globe"
   },

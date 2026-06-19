@@ -1,5 +1,5 @@
 import { AuthConfig } from 'angular-oauth2-oidc';
-import { environment } from 'src/assets/environments/environment';
+import { environment } from '@assets/environments/environment';
 
 export const authFlowConfig: AuthConfig = {
 

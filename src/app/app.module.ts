@@ -2,7 +2,6 @@ import { ErrorHandler, NgModule, inject, provideAppInitializer } from '@angular/
 import { BrowserModule } from '@angular/platform-browser';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
-//import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { MapComponent } from './map/map.component';
 import { FooterComponent } from './footer/footer.component';

@@ -125,12 +125,16 @@
       <div class="settings-buttons" id="gss-protocol" (click)="onGssProtocolButtonClicked($event)">{{gssSelectedProtocol}}</div>
     </div>
     <div id="protocol-container" class="settings-sub-container" (mouseover)="onProtocolMenuHover($event)" (mouseleave)="onProtocolMenuLeave($event)">
+      @if (gssProtocols.includes("OData")) {
       <div class="selection-item" [class.deactivated]="!isOdataActive" (click)="onGssProtocolChanged('OData')">
         <label for="selection-globe">OData</label>
       </div>
+      }
+      @if (gssProtocols.includes("STAC")) {
       <div class="selection-item" [class.deactivated]="!isStacActive" (click)="onGssProtocolChanged('STAC')">
         <label for="selection-plane">STAC</label>
       </div>
+      }
     </div>
   </div>
 </div>
